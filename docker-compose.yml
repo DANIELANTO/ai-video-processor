@@ -1,0 +1,64 @@
+services:
+  api:
+    build: .
+    container_name: video_processor_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/workspace/app
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/videodb
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME}
+      - AZURE_ACCOUNT_NAME=${AZURE_ACCOUNT_NAME}
+      - AZURE_ACCOUNT_KEY=${AZURE_ACCOUNT_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  db:
+    image: postgres:15-alpine
+    container_name: video_processor_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=videodb
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d videodb" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: video_processor_redis
+    ports:
+      - "6380:6379"
+
+  worker_whisper:
+    build: .
+    container_name: video_worker_whisper
+    command: celery -A app.infrastructure.celery_app worker --loglevel=info -Q celery
+    volumes:
+      - ./app:/workspace/app
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/videodb
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
+      - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME}
+      - AZURE_ACCOUNT_NAME=${AZURE_ACCOUNT_NAME}
+      - AZURE_ACCOUNT_KEY=${AZURE_ACCOUNT_KEY}
+    depends_on:
+      - api
+      - redis
+      - db
+
+volumes:
+  postgres_data:
