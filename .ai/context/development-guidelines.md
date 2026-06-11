@@ -194,3 +194,14 @@ Update the relevant `.ai/context/` files when:
 | Main execution flow changes | `architecture-design.md`, `project-context.md` |
 | Spec implemented changing behavior | All relevant context files |
 | Direct user prompt with key project info | Whichever context file is relevant |
+
+---
+
+## 13. Video and Subtitle Synchronization Pattern
+
+When building UIs that synchronize video playback with subtitle tracking:
+1. Isolate the synchronization logic in a custom hook (e.g., `useVideoSync.ts`) to avoid cluttering the UI component.
+2. The hook should accept a `RefObject<HTMLVideoElement>` and listen to the `timeupdate` event.
+3. To prevent unnecessary re-renders, the state (`activeIndex`) should only be updated when the active subtitle changes, by doing a strict equality check before `setState(prev => prev === next ? prev : next)`.
+4. The hook should expose a `seekTo(ms)` function rather than directly exposing the ref.
+5. In the UI component, implement auto-scrolling to the active subtitle by assigning a ref to the active row and using `element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })` inside a `useEffect` that depends on `isActive`.

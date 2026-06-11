@@ -102,10 +102,8 @@ frontend/
     │   └── SubtitleEditor.tsx    # Subtitle review/edit UI — table of editable rows
     ├── hooks/
     │   ├── useJobStream.ts       # SSE connection management + stream state (status, progress, final_url)
-    │   └── useSubtitleEditor.ts  # Subtitle list state management (add, remove, edit rows)
-    ├── services/
-    │   └── api.ts                # API client — all HTTP calls to FastAPI backend
-    └── utils/                    # Shared utility functions (currently empty or minimal)
+    │   ├── useSubtitleEditor.ts  # Subtitle list state management (add, remove, edit rows)
+    │   └── useVideoSync.ts       # Video and subtitle active row synchronization
 ```
 
 ### Per-File Responsibilities
@@ -116,6 +114,7 @@ frontend/
 | `components/SubtitleEditor.tsx` | Subtitle review editor UI | Editing UX improvements, new subtitle fields |
 | `hooks/useJobStream.ts` | SSE management, status/progress tracking | New SSE event types, reconnect logic |
 | `hooks/useSubtitleEditor.ts` | Subtitle list state (CRUD in memory) | Subtitle manipulation features |
+| `hooks/useVideoSync.ts` | Synchronization between video time and active subtitle | Changing sync logic or adding new sync hooks |
 | `services/api.ts` | All backend API calls (upload, confirm, render, get details) | New API endpoints, request/response shape changes |
 | `index.css` | TailwindCSS v4 import + global reset | Global styles, design tokens |
 

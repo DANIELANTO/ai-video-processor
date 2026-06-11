@@ -282,3 +282,25 @@ Mapear el puerto host de la API a `8001` (`8001:8000` en `docker-compose.yml`). 
 - `frontend/src/services/api.ts` y `useJobStream.ts`: fallback hardcodeado actualizado a `localhost:8001`.
 - Swagger UI accesible en `http://localhost:8001/docs`.
 - Si en el futuro el puerto 8000 queda libre, revertir a `8000:8000` en `docker-compose.yml` y actualizar los tres archivos de frontend.
+
+---
+
+## DEC-0013: Local Object URL for Video Preview
+
+**Date:** 2026-06-11  
+**Status:** Aceptada
+
+**Contexto:**  
+During the subtitle review phase, the user needs to preview the video to accurately correct the subtitles. Loading the video from Azure Blob Storage would incur egress costs, add latency, and require generating a read SAS token specifically for the frontend player.
+
+**Decisión:**  
+Create a local `blob:` Object URL from the original `File` object selected in the upload phase using `URL.createObjectURL(file)`. This URL is passed directly to the `<video>` element for local playback.
+
+**Razón:**  
+- Zero latency video playback.
+- Zero egress cost from Azure.
+- Avoids modifying backend API to support partial video streaming (Range requests) which is required for seeking in modern browsers.
+
+**Impacto:**  
+- If the user reloads the page during the `REVIEW_PENDING` state, the original `File` object is lost and the video preview will not be available. The UI must gracefully handle a missing `videoSrc` by showing a placeholder.
+- The `App.tsx` component is responsible for creating and revoking the Object URL to prevent memory leaks.

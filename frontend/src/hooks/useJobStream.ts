@@ -15,6 +15,7 @@ export const useJobStream = (jobId: string | null) => {
 
     useEffect(() => {
         if (!jobId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setStreamData({ status: 'PENDING', progress: 0 });
             return;
         }
