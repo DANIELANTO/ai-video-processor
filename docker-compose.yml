@@ -3,11 +3,12 @@ services:
     build: .
     container_name: video_processor_api
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./app:/workspace/app
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/videodb
+      - REDIS_URL=redis://redis:6379/0
       - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
       - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME}
       - AZURE_ACCOUNT_NAME=${AZURE_ACCOUNT_NAME}
@@ -17,6 +18,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+    restart: on-failure
 
   db:
     image: postgres:15-alpine
@@ -50,15 +52,21 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/videodb
       - REDIS_URL=redis://redis:6379/0
+      # Explicitly acknowledge that the worker runs as root inside the container.
+      # This silences the Celery SecurityWarning without hiding it silently.
+      # TODO: Create a non-root user in the Dockerfile for production hardening.
+      - C_FORCE_ROOT=1
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING}
       - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME}
       - AZURE_ACCOUNT_NAME=${AZURE_ACCOUNT_NAME}
       - AZURE_ACCOUNT_KEY=${AZURE_ACCOUNT_KEY}
     depends_on:
-      - api
-      - redis
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: on-failure
 
 volumes:
   postgres_data:

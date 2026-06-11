@@ -8,13 +8,19 @@ import httpx
 import math
 
 from app.infrastructure.celery_app import celery_app
-from app.infrastructure.database import SessionLocal
+import app.infrastructure.database as _db_module
 from app.infrastructure.repositories import PostgresMediaJobRepository
 from app.infrastructure.storage import AzureBlobStorageAdapter
 from app.domain.entities import JobStatus, SubtitleSegment
 
-#Sync Redis client
-redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://redis:6380/0"))
+# Workers run in a separate process from FastAPI and never execute the lifespan
+# handler, so SessionLocal would remain None. We must call init_db() explicitly
+# here. The worker_whisper container depends on db: condition: service_healthy,
+# so the DB is guaranteed to be reachable at this point. (See DEC-0011.)
+_db_module.init_db()
+
+# Sync Redis client — always use the internal Docker port (6379), not the host-mapped one (6380)
+redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
 
 # OpenAI client
 openai_client = OpenAI(
@@ -52,7 +58,7 @@ def get_video_duration_seconds(path: str) -> float:
 @celery_app.task(name="app.infrastructure.workers.transcribe_audio")
 def transcribe_audio(job_id_str: str):
     job_id = UUID(job_id_str)
-    db = SessionLocal()
+    db = _db_module.SessionLocal()
     repository = PostgresMediaJobRepository(db)
     
     try:
@@ -129,7 +135,7 @@ def transcribe_audio(job_id_str: str):
 @celery_app.task(name="app.infrastructure.workers.render_video")
 def render_video(job_id_str: str):
     job_id = UUID(job_id_str)
-    db = SessionLocal()
+    db = _db_module.SessionLocal()
     repository = PostgresMediaJobRepository(db)
     
     try:

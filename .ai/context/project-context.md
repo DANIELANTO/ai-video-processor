@@ -80,7 +80,7 @@ docker compose up --build
 ```
 
 This starts:
-- `video_processor_api` — FastAPI on port `8000`
+- `video_processor_api` — FastAPI on port `8001` (host) → `8000` (internal). Changed from 8000 due to port conflict with `nodepay-ai-service` in the same dev environment.
 - `video_processor_db` — PostgreSQL on port `5433` (mapped from internal `5432`)
 - `video_processor_redis` — Redis on port `6380` (mapped from internal `6379`)
 - `video_worker_whisper` — Celery worker (Whisper + FFmpeg)
@@ -91,7 +91,7 @@ cd frontend
 npm run dev
 ```
 
-Frontend dev server runs on `http://localhost:5173`.
+Frontend dev server runs on `http://localhost:5173`. API is at `http://localhost:8001`.
 
 ### Run backend locally (without Docker)
 ```bash

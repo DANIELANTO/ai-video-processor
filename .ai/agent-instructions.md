@@ -21,13 +21,22 @@ Do not skip this step. Do not assume you already know the project.
 
 ## Step 2 — Check for an Existing Spec
 
-Before implementing a new feature or significant change:
+Before implementing a new feature, significant change, **or bug fix**:
 
 1. Look in `.ai/specs/` for a spec related to the requested change.
-2. If a spec exists: read it completely. It is the source of truth for the implementation and validate the guidelines with `.ai/specs/README.md`..
-3. If no spec exists: **create one** using `.ai/specs/spec-template.md` before writing any code, and follow the guidelines in `.ai/specs/README.md`,.
+2. If a spec exists: read it completely. It is the source of truth for the 
+   implementation. Validate the guidelines with `.ai/specs/README.md`.
+3. If no spec exists: **create one** using `.ai/specs/spec-template.md` before 
+   writing any code, and follow the guidelines in `.ai/specs/README.md`.
 
-**Only trivial changes** (typos, minor wording, small cosmetic adjustments) may skip the spec requirement.
+**For bugs and fixes specifically**, follow the triage rules in 
+`.ai/specs/README.md` under "Manejo de Bugs y Fixes" to decide whether to 
+update an existing spec or create a new one. Either way, a spec must exist 
+before touching code.
+
+**Only trivial changes** (typos, minor wording, small cosmetic adjustments) 
+may skip the spec requirement. Fixing a runtime error, a logic bug, or a 
+broken behavior is NOT trivial.
 
 ---
 

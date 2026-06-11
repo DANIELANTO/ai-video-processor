@@ -1,7 +1,7 @@
 # Technical Decisions Log — AI Video Processor
 
 > **For AI Agents:** Read this file to understand WHY the project is structured as it is. Add new entries whenever a significant technical decision is made.  
-> Last updated: 2026-06-11
+> Last updated: 2026-06-11 (DEC-0011 added)
 
 ---
 
@@ -234,3 +234,51 @@ All imports in the codebase reference `app.application.interfaces` which resolve
 - The `interfaces/` directory should be removed to avoid confusion.
 - Until removed, agents must not add code to the `interfaces/` directory.
 - **Action needed:** Confirm with the project owner and remove the empty directory if confirmed unused.
+
+---
+
+## DEC-0011: Lazy Database Initialization via FastAPI Lifespan
+
+**Date:** 2026-06-11  
+**Status:** Aceptada
+
+**Contexto:**  
+Calling `create_engine()` and `Base.metadata.create_all()` at module import time caused a race condition: when Python first imported `database.py`, Docker's internal DNS resolver had not yet registered the `db` container hostname. This caused a fatal `OperationalError` (`could not translate host name "db"`) that killed the API container on startup — even with `depends_on: condition: service_healthy` in Docker Compose, because that healthcheck only guarantees Postgres is running, not that the network DNS has propagated by the time Python imports execute.
+
+**Decisión:**  
+- `database.py` now exports `engine = None` and `SessionLocal = None` at module level.
+- A new `init_db()` function performs the actual `create_engine()` + retry loop.
+- `main.py` calls `init_db()` and `Base.metadata.create_all()` inside a FastAPI `@asynccontextmanager` lifespan handler, which runs **after** Uvicorn has started and Docker networking is fully initialized.
+
+**Razón:**  
+- Lifespan handlers run significantly later than module imports, by which time Docker DNS is always ready.
+- Preserves the existing retry logic (`_create_engine_with_retry`) without changes.
+- Follows FastAPI's recommended pattern for startup/shutdown lifecycle management.
+
+**Impacto:**  
+- `SessionLocal` is `None` until `init_db()` runs. Any code calling `SessionLocal()` before `init_db()` will raise `TypeError: 'NoneType' object is not callable`.
+- **Celery workers run in a separate process** and never execute the FastAPI lifespan. Therefore `workers.py` must call `init_db()` explicitly at module level. This is safe because `worker_whisper` depends on `db: condition: service_healthy`.
+- All future startup-time initialization (e.g., cache warmup, connection pool setup) should be added to the lifespan handler in `main.py` (for the API process) and called explicitly in `workers.py` (for the worker process).
+
+---
+
+## DEC-0012: API Host Port Changed to 8001
+
+**Date:** 2026-06-11  
+**Status:** Aceptada
+
+**Contexto:**  
+Durante el bringup del stack, el puerto 8000 del host ya estaba ocupado por el contenedor `nodepay-ai-service-1`, perteneciente a otro proyecto del mismo entorno de desarrollo.
+
+**Decisión:**  
+Mapear el puerto host de la API a `8001` (`8001:8000` en `docker-compose.yml`). El puerto interno del contenedor permanece en `8000` (Uvicorn sigue corriendo en `0.0.0.0:8000` dentro del contenedor).
+
+**Razón:**  
+- La alternativa de detener `nodepay-ai-service` interrumpe otro proyecto activo.
+- El cambio de puerto es local al entorno de Daniel; el puerto interno no cambia, por lo que la comunicación inter-contenedor (worker → API) no se ve afectada.
+
+**Impacto:**  
+- `frontend/.env`: `VITE_API_BASE_URL=http://localhost:8001/api/v1`
+- `frontend/src/services/api.ts` y `useJobStream.ts`: fallback hardcodeado actualizado a `localhost:8001`.
+- Swagger UI accesible en `http://localhost:8001/docs`.
+- Si en el futuro el puerto 8000 queda libre, revertir a `8000:8000` en `docker-compose.yml` y actualizar los tres archivos de frontend.
