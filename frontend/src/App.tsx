@@ -5,10 +5,19 @@ import { videoApi } from './services/api';
 import { SubtitleEditor } from './components/SubtitleEditor';
 
 function App() {
+  const [jobId, setJobId] = useState<string | null>(() => localStorage.getItem('activeVideoJobId'));
   const [file, setFile] = useState<File | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [subtitlesToEdit, setSubtitlesToEdit] = useState<SubtitleSegment[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync jobId to localStorage
+  useEffect(() => {
+    if (jobId) {
+      localStorage.setItem('activeVideoJobId', jobId);
+    } else {
+      localStorage.removeItem('activeVideoJobId');
+    }
+  }, [jobId]);
 
   // Custom hook for Server-Sent Events
   const stream = useJobStream(jobId);
@@ -55,6 +64,14 @@ function App() {
       setSubtitlesToEdit(null); // Hide editor while rendering
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const handleReset = () => {
+    if (window.confirm('Are you sure you want to start a new video? The current progress will be lost from this view.')) {
+      setJobId(null);
+      setFile(null);
+      setSubtitlesToEdit(null);
     }
   };
 
@@ -127,6 +144,21 @@ function App() {
             >
               Download Generated Video
             </a>
+          </div>
+        )}
+
+        {/* Reset / New Video Button */}
+        {jobId && (
+          <div className="mt-12 text-center">
+            <button
+              onClick={handleReset}
+              className="text-gray-400 hover:text-red-500 text-sm font-medium transition-colors flex items-center justify-center mx-auto"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Discard and Start New Video
+            </button>
           </div>
         )}
 

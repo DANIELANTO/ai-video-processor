@@ -59,3 +59,15 @@ class AzureBlobStorageAdapter(IFileStorage):
         
         # Return the URL with the injected signature
         return f"https://{self.account_name}.blob.core.windows.net/{self.container_name}/{blob_name}?{sas_token}"
+
+    def generate_read_url(self, blob_name: str) -> str:
+        """Generates a temporary read-only SAS URL for a blob."""
+        sas_token = generate_blob_sas(
+            account_name=self.account_name,
+            container_name=self.container_name,
+            blob_name=blob_name,
+            account_key=self.account_key,
+            permission=BlobSasPermissions(read=True),
+            expiry=datetime.utcnow() + timedelta(days=7)
+        )
+        return f"https://{self.account_name}.blob.core.windows.net/{self.container_name}/{blob_name}?{sas_token}"

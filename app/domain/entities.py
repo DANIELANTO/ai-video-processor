@@ -42,6 +42,7 @@ class MediaJob(BaseModel):
     rendering_params: RenderingParameters = Field(default_factory=RenderingParameters)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     error_message: Optional[str] = None
+    final_url: Optional[str] = None
 
     def advance_status(self, new_status: JobStatus) -> None:
         """Controls the state transition of the job."""

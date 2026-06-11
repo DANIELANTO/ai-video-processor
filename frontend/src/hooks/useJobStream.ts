@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { videoApi } from '../services/api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
 
@@ -13,7 +14,23 @@ export const useJobStream = (jobId: string | null) => {
     const [streamData, setStreamData] = useState<JobStreamData>({ status: 'PENDING', progress: 0 });
 
     useEffect(() => {
-        if (!jobId) return;
+        if (!jobId) {
+            setStreamData({ status: 'PENDING', progress: 0 });
+            return;
+        }
+
+        // Fetch initial state to synchronize UI immediately on reload
+        videoApi.getJobDetails(jobId)
+            .then(data => {
+                setStreamData(prev => ({
+                    ...prev,
+                    status: data.status,
+                    final_url: data.final_url,
+                }));
+            })
+            .catch(err => {
+                console.error("Error fetching initial job status:", err);
+            });
 
         // Endpoint connection to FastAPI SSE
         const eventSource = new EventSource(`${API_BASE_URL}/jobs/${jobId}/stream`);
@@ -35,14 +52,9 @@ export const useJobStream = (jobId: string | null) => {
         eventSource.onerror = (err) => {
             console.error("Error detected in SSE connection:", err);
 
-            // Verify the connection state. 
-            // EventSource.CLOSED = 2 (Permanent close)
             if (eventSource.readyState === EventSource.CLOSED) {
                 console.log("SSE connection closed by the server.");
             } else {
-                // If the state is 0 (CONNECTING), it is trying to reconnect.
-                // To avoid an infinite loop in case of serious errors (e.g. Backend turned off),
-                // It manually closes the connection and marks it as FAILED in the UI.
                 console.warn("Forcing SSE close to avoid infinite retries.");
                 eventSource.close();
                 setStreamData(prev => ({

@@ -20,7 +20,7 @@ from app.infrastructure.queue import CeleryQueueAdapter
 from app.application.use_cases.process_video import ConfirmVideoUploadUseCase
 
 from typing import List
-from app.domain.entities import SubtitleSegment, MediaJob
+from app.domain.entities import SubtitleSegment, MediaJob, JobStatus
 from app.application.use_cases.process_video import SubmitFinalVideoRenderingUseCase
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -159,10 +159,11 @@ def submit_render(
 @app.get("/api/v1/jobs/{job_id}", status_code=200, response_model=MediaJob)
 def get_job_details(
     job_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    storage: AzureBlobStorageAdapter = Depends(get_storage_adapter)
 ):
     """
-    Returns the details of a specific job, including its subtitles.
+    Returns the details of a specific job, including its subtitles and final URL if completed.
     """
     try:
         repository = PostgresMediaJobRepository(db)
@@ -170,6 +171,10 @@ def get_job_details(
         if not job:
             raise HTTPException(status_code=404, detail=f"Job {job_id} not found.")
         
+        if job.status == JobStatus.COMPLETED and job.storage_blob_id:
+            final_blob_name = f"final_{job.storage_blob_id}"
+            job.final_url = storage.generate_read_url(final_blob_name)
+            
         return job
     except HTTPException:
         raise

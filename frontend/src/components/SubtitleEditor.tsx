@@ -27,12 +27,11 @@ const SubtitleRow = memo(function SubtitleRow({
             <td className="px-4 py-3 text-sm text-gray-500 font-mono">{formattedEnd}</td>
             <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{formattedDuration}</td>
             <td className="px-4 py-3">
-                <input
-                    type="text"
+                <textarea
                     value={text}
                     onChange={(e) => onTextChange(index, e.target.value)}
                     aria-label={`Editar texto del subtítulo ${index}`}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-700 transition-colors"
+                    className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-700 transition-colors"
                 />
             </td>
         </tr>
@@ -51,10 +50,10 @@ export function SubtitleEditor({ initialSubtitles, onSubmitRender }: SubtitleEdi
                     <thead>
                         <tr>
                             <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider">#</th>
-                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider">Inicio</th>
-                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider">Fin</th>
-                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider">Duración</th>
-                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider w-1/2">Texto Editable</th>
+                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider">Start</th>
+                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider">End</th>
+                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider">Duration</th>
+                            <th className="px-4 py-3 bg-gray-50 border-b-2 border-gray-200 text-sm font-semibold text-gray-600 tracking-wider w-1/2">Editable Text</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
