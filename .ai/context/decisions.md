@@ -304,3 +304,73 @@ Create a local `blob:` Object URL from the original `File` object selected in th
 **Impacto:**  
 - If the user reloads the page during the `REVIEW_PENDING` state, the original `File` object is lost and the video preview will not be available. The UI must gracefully handle a missing `videoSrc` by showing a placeholder.
 - The `App.tsx` component is responsible for creating and revoking the Object URL to prevent memory leaks.
+
+---
+
+## DEC-0014: FFmpeg Encoding Optimization (ultrafast preset)
+
+**Date:** 2026-06-11
+**Status:** Aceptada
+
+**Contexto:**
+El proceso de renderizado del video (`workers.py`) usando FFmpeg era muy lento debido a que se utilizaban los valores por defecto del encoder `libx264` (preset `medium`). Además, se presentaban crashes de tipo `ValueError` al leer valores `N/A` del log de progreso de FFmpeg.
+
+**Decisión:**
+Se configuró FFmpeg explícitamente para usar `-c:v libx264`, `-preset ultrafast`, `-crf 23` y `-threads 0`. También se añadió un bloque defensivo `try/except` para ignorar valores no numéricos (`N/A`) emitidos en el stream `out_time_ms`.
+
+**Razón:**
+- `ultrafast` reduce dramáticamente el tiempo de renderizado (hasta un 50-70% más rápido), aprovechando todos los hilos (`-threads 0`).
+- El incremento en el tamaño de archivo es aceptable para la naturaleza MVP del proyecto.
+- Evita que la tarea de Celery termine en `FAILED` prematuramente por errores de parseo de progreso.
+
+**Impacto:**
+- Mejor percepción de performance de renderizado.
+- No es posible usar `-c:v copy` ya que el proceso aplica filtros de video (`-vf`) para subtítulos quemados y ecualización de brillo.
+
+---
+
+## DEC-0015: Azure Blob Upload — Explicit Timeouts, Block Upload, and Concurrency
+
+**Date:** 2026-06-11
+**Status:** Aceptada
+
+**Contexto:**
+`blob_client.upload_blob(data, overwrite=True)` with no configuration uses the Azure SDK's
+default socket write timeout of ~20 seconds. A ~21.7 MB rendered MP4 uploaded from inside a
+Docker container (which routes through the host network adapter) was consistently timing out,
+triggering the SDK's internal retry loop (3 retries × 20s = 60+ seconds blocked) before failing
+with `ServiceResponseError: ("Connection aborted.", TimeoutError("The write operation timed out"))`.
+
+The 10+ minute job duration was caused by this retry cycle combined with no Celery task time limit,
+leaving the worker blocked indefinitely.
+
+**Decisión:**
+Configure `BlobServiceClient.from_connection_string()` with:
+- `connection_timeout=30` — TCP connect timeout.
+- `read_timeout=300` — Socket write/read timeout per chunk (raised from ~20s default).
+- `max_single_put_size=8 * 1024 * 1024` — Files > 8 MB use block (multi-part) upload.
+- `max_block_size=4 * 1024 * 1024` — Each block is 4 MB.
+
+Also pass `read_timeout=300` and `max_concurrency=4` directly to `upload_blob()`.
+
+Additionally added to `celery_app.py`:
+- `task_time_limit=600` — Hard kill after 10 minutes.
+- `task_soft_time_limit=540` — Raises `SoftTimeLimitExceeded` at 9 minutes for graceful cleanup.
+
+**Razón:**
+- Block upload means a 21.7 MB file is split into ~6 blocks of 4 MB. If any block's connection
+  drops, only that block retries — not the entire file.
+- `read_timeout=300` gives each block 5 minutes to complete, handling legitimate network
+  slowness without failing the entire job.
+- `max_concurrency=4` sends up to 4 blocks in parallel, reducing total upload time.
+- Task time limits prevent the worker from hanging indefinitely if all retries fail.
+
+**Impacto:**
+- `app/infrastructure/storage.py`: `BlobServiceClient` and `upload_blob()` now have explicit config.
+- `app/infrastructure/celery_app.py`: Both tasks are now bounded to 10 minutes max.
+- `app/infrastructure/workers.py`: Added `SoftTimeLimitExceeded` handler to both tasks so that
+  temp files are cleaned up and the job is marked `FAILED` gracefully before the hard kill fires.
+- All other upload/download/SAS behavior is unchanged.
+- If the SDK version is upgraded beyond `azure-storage-blob==12.28.0`, verify that the
+  `max_single_put_size`, `max_block_size`, `connection_timeout`, and `read_timeout` kwargs
+  are still accepted by `BlobServiceClient.from_connection_string()`.
