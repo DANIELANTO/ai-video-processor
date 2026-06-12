@@ -53,10 +53,10 @@ Use lowercase, hyphen-separated words. Be descriptive but concise.
 ## How to Use a Spec to Implement Changes
 
 1. **Create the spec** using `.ai/specs/spec-template.md` as a base.
-2. **Fill in all sections** relevant to the change. Mark unknown sections as `Pendiente de confirmar`.
+2. **Fill in all sections** relevant to the change. Mark unknown sections as `Pending confirmation`.
 3. **Implement following the spec**. The spec is the source of truth — not the chat conversation.
 4. **If the spec is found to be incomplete** during implementation, update the spec first, then continue.
-5. **After implementation**, mark the spec's status as `Implementada` and add a brief implementation note.
+5. **After implementation**, mark the spec's status as `Implemented` and add a brief implementation note.
 
 ---
 
@@ -77,44 +77,44 @@ After a spec is implemented, update whichever of these files are affected:
 ## Spec Lifecycle
 
 ```
-Propuesta → En progreso → Implementada
-                       → Cancelada
+Proposal → In progress → Implemented
+                       → Cancelled
 ```
 
-- **Propuesta:** The spec is written but not yet being implemented.
-- **En progreso:** Implementation has started.
-- **Implementada:** The feature/change is complete and context files have been updated.
-- **Cancelada:** The spec was abandoned. Keep the file with a note explaining why.
+- **Proposal:** The spec is written but not yet being implemented.
+- **In progress:** Implementation has started.
+- **Implemented:** The feature/change is complete and context files have been updated.
+- **Cancelled:** The spec was abandoned. Keep the file with a note explaining why.
 
-## Manejo de Bugs y Fixes
+## Handling Bugs and Fixes
 
-No todos los bugs requieren una nueva spec.
+Not all bugs require a new spec.
 
-### Actualizar una spec existente cuando:
+### Update an existing spec when:
 
-- El bug fue introducido por esa misma spec.
-- El bug es consecuencia directa de una feature reciente.
-- El fix forma parte del mismo objetivo funcional.
-- El cambio no representa una nueva iniciativa.
+- The bug was introduced by that same spec.
+- The bug is a direct consequence of a recent feature.
+- The fix is part of the same functional objective.
+- The change does not represent a new initiative.
 
-### Crear una nueva spec cuando:
+### Create a new spec when:
 
-- El bug es independiente de las specs actuales.
-- El bug requiere cambios arquitectónicos.
-- El bug afecta múltiples módulos sin relación directa con la spec original.
-- El fix requiere una estrategia técnica propia.
-- El bug representa una iniciativa de trabajo independiente.
+- The bug is independent of current specs.
+- The bug requires architectural changes.
+- The bug affects multiple modules with no direct relation to the original spec.
+- The fix requires its own technical strategy.
+- The bug represents an independent work initiative.
 
-### Regla general
+### General rule
 
-Si el fix responde a la pregunta:
+If the fix answers the question:
 
-"¿Esto sigue siendo parte del mismo objetivo?"
+"Is this still part of the same objective?"
 
-Entonces actualizar la spec existente.
+Then update the existing spec.
 
-Si responde a:
+If it answers:
 
-"¿Esto merece su propia planificación, análisis y criterios de aceptación?"
+"Does this deserve its own planning, analysis, and acceptance criteria?"
 
-Entonces crear una nueva spec.
+Then create a new spec.

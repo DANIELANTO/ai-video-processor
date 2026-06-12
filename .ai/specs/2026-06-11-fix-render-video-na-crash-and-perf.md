@@ -1,91 +1,91 @@
-# Spec: Fix render_video crash por `out_time_ms=N/A` y análisis de performance
+# Spec: Fix render_video crash due to out_time_ms=N/A and performance analysis
 
-## Estado
+## Status
 
-Implementada
+Implemented
 
 ---
 
-## Contexto
+## Context
 
-Al iniciar el proceso de renderizado de video (tarea Celery `render_video`), FFmpeg emite líneas de progreso a través de `-progress -`. Estas líneas tienen el formato `clave=valor`. Entre ellas aparece `out_time_ms` que representa el tiempo procesado en microsegundos.
+Upon starting the video rendering process (Celery task `render_video`), FFmpeg emits progress lines via `-progress -`. These lines have the format `key=value`. Among them is `out_time_ms` which represents the processed time in microseconds.
 
-**El problema:** En ciertos frames (especialmente al inicio y/o al final del proceso), FFmpeg puede emitir `out_time_ms=N/A` en lugar de un número entero. El código actual intenta hacer `int("N/A")`, lo que provoca:
+**The problem:** On certain frames (especially at the start and/or end of the process), FFmpeg can emit `out_time_ms=N/A` instead of an integer. The current code attempts to run `int("N/A")`, which causes:
 
 ```
 ValueError: invalid literal for int() with base 10: 'N/A'
 ```
 
-Esto rompe la tarea Celery, que captura la excepción y marca el job como `FAILED`, propagando el error al frontend como "Processing Failed" incluso si el video podría haberse procesado correctamente.
+This breaks the Celery task, which catches the exception and marks the job as `FAILED`, propagating the error to the frontend as "Processing Failed" even if the video could have been processed successfully.
 
-El bug es independiente de las specs actuales (no fue introducido por ninguna spec reciente). Además, el usuario reporta que el procesamiento demora considerablemente. Se hace un análisis de cuello de botella incluido en esta spec.
-
----
-
-## Objetivo
-
-1. Corregir el crash `ValueError: invalid literal for int() with base 10: 'N/A'` en la tarea `render_video` de `app/infrastructure/workers.py`.
-2. Analizar el pipeline para identificar cuellos de botella de performance dentro de los límites del stack actual (sin incurrir en gasto de infraestructura).
-3. Aplicar mejoras de performance que sean gratuitas o de bajo costo (cambio de modelo AI más rápido y económico si aplica).
+The bug is independent of current specs (it was not introduced by any recent spec). Additionally, the user reports that processing takes a significant amount of time. A bottleneck analysis is included in this spec.
 
 ---
 
-## Alcance
+## Objective
 
-- Manejo defensivo del valor `N/A` en el parsing de progreso de FFmpeg.
-- Análisis y mejora del comando FFmpeg en `render_video` (flags de encodeo, preset, threads).
-- Evaluación del modelo de IA actual (`whisper-1`) y si existe una alternativa más rápida dentro del mismo tier de costo.
-- Lógica de progreso robusta que ignore líneas con valores no numéricos.
-
----
-
-## Fuera de Alcance
-
-- No se modificará la infraestructura Docker (no se agregarán contenedores, no se cambiará hardware).
-- No se cambiará la base de datos ni el esquema.
-- No se modificará el pipeline de transcripción (Whisper) salvo que se decida cambiar el modelo.
-- No se modificará la capa de dominio (`app/domain/`).
-- No se modificará la capa de aplicación (`app/application/`).
-- No se modificará el frontend salvo que sea necesario para comunicar el error de forma más informativa.
-- No se agregarán nuevas dependencias.
+1. Fix the `ValueError: invalid literal for int() with base 10: 'N/A'` crash in the `render_video` task of `app/infrastructure/workers.py`.
+2. Analyze the pipeline to identify performance bottlenecks within the limits of the current stack (without incurring infrastructure costs).
+3. Apply performance improvements that are free or low-cost (switching to a faster and cheaper AI model if applicable).
 
 ---
 
-## Requisitos Funcionales
+## Scope
 
-- [ ] **RF-01:** Si `out_time_ms` tiene el valor `N/A`, la línea debe ser ignorada silenciosamente sin interrumpir el proceso FFmpeg.
-- [ ] **RF-02:** El proceso de renderizado debe continuar y completarse correctamente aunque FFmpeg emita valores `N/A` durante la lectura del progreso.
-- [ ] **RF-03:** El job no debe quedar en estado `FAILED` por un error de parsing de progreso.
-- [ ] **RF-04:** El progreso en Redis debe seguir publicándose correctamente en los frames donde `out_time_ms` sí tenga valor numérico.
-
----
-
-## Requisitos Técnicos
-
-- [ ] **RT-01:** Usar `try/except ValueError` (o validación con `.isnumeric()` / `strip().lstrip('-').isdigit()`) al parsear `out_time_ms` para ignorar valores no numéricos.
-- [ ] **RT-02:** El handling debe mantenerse dentro del `for line in process.stdout:` existente sin refactorizar la estructura del método.
-- [ ] **RT-03:** El FFmpeg command debe usar flags que aceleren el encoding sin afectar calidad visual percibida por el usuario:
-  - `-preset ultrafast` o `-preset veryfast` en el encoder de video.
-  - `-threads 0` para usar todos los cores disponibles del contenedor.
-  - Evaluar si copiar el stream de video (`-c:v copy`) es viable (no lo es si se aplica `vf` filter con `eq=` y `subtitles=`).
-- [ ] **RT-04:** El manejo de errores debe hacer log del valor `N/A` a `stderr` o al logger de Celery para diagnóstico sin interrumpir la ejecución.
-- [ ] **RT-05:** El código debe mantenerse dentro de la capa de infraestructura.
+- Defensive handling of the `N/A` value in FFmpeg progress parsing.
+- Analysis and improvement of the FFmpeg command in `render_video` (encoding flags, preset, threads).
+- Evaluation of the current AI model (`whisper-1`) and whether a faster alternative exists within the same cost tier.
+- Robust progress logic that ignores lines with non-numeric values.
 
 ---
 
-## Archivos o Módulos Afectados
+## Out of Scope
 
-| Archivo | Tipo de cambio |
+- No modifications to the Docker infrastructure (no additional containers, no hardware changes).
+- No changes to the database or schema.
+- No modifications to the transcription pipeline (Whisper) unless we decide to change the model.
+- No modifications to the domain layer (`app/domain/`).
+- No modifications to the application layer (`app/application/`).
+- No modifications to the frontend unless necessary to report the error more informatively.
+- No new dependencies will be added.
+
+---
+
+## Functional Requirements
+
+- [ ] **RF-01:** If `out_time_ms` has the value `N/A`, the line must be silently ignored without interrupting the FFmpeg process.
+- [ ] **RF-02:** The rendering process must continue and complete successfully even if FFmpeg emits `N/A` values during progress reading.
+- [ ] **RF-03:** The job must not end up in the `FAILED` state due to a progress parsing error.
+- [ ] **RF-04:** Progress in Redis must continue to be published correctly on frames where `out_time_ms` does have a numeric value.
+
+---
+
+## Technical Requirements
+
+- [ ] **RT-01:** Use `try/except ValueError` (or validation with `.isnumeric()` / `strip().lstrip('-').isdigit()`) when parsing `out_time_ms` to ignore non-numeric values.
+- [ ] **RT-02:** The handling must remain within the existing `for line in process.stdout:` loop without refactoring the method structure.
+- [ ] **RT-03:** The FFmpeg command must use flags that speed up encoding without affecting the user's perceived visual quality:
+  - `-preset ultrafast` or `-preset veryfast` in the video encoder.
+  - `-threads 0` to use all available container cores.
+  - Evaluate if copying the video stream (`-c:v copy`) is viable (it is not if a `vf` filter is applied with `eq=` and `subtitles=`).
+- [ ] **RT-04:** Error handling should log the `N/A` value to `stderr` or the Celery logger for diagnosis without interrupting execution.
+- [ ] **RT-05:** The code must remain within the infrastructure layer.
+
+---
+
+## Affected Files or Modules
+
+| File | Change Type |
 |---|---|
-| `app/infrastructure/workers.py` | Modificación (bug fix + mejoras FFmpeg) |
+| `app/infrastructure/workers.py` | Modification (bug fix + FFmpeg improvements) |
 
 ---
 
-## Diseño Propuesto
+## Proposed Design
 
-### Backend — Fix del crash (`workers.py`, línea 180)
+### Backend — Crash Fix (`workers.py`, line 180)
 
-**Antes (código roto):**
+**Before (broken code):**
 ```python
 for line in process.stdout:
     if "out_time_ms=" in line:
@@ -95,7 +95,7 @@ for line in process.stdout:
             redis_client.publish(...)
 ```
 
-**Después (código corregido):**
+**After (corrected code):**
 ```python
 for line in process.stdout:
     if "out_time_ms=" in line:
@@ -118,112 +118,112 @@ for line in process.stdout:
 
 ---
 
-### Backend — Mejora de performance en FFmpeg
+### Backend — FFmpeg Performance Improvement
 
-FFmpeg por defecto usa el encoder `libx264` con preset `medium`. El preset controla la velocidad de encoding vs. compresión. Para un video tipico en un contenedor compartido, cambiar a `ultrafast` o `veryfast` puede reducir el tiempo de rendering en un **50–70%** a costo de un archivo de salida ligeramente mayor (aceptable para este caso de uso).
+By default, FFmpeg uses the `libx264` encoder with the `medium` preset. The preset controls encoding speed vs. compression. For a typical video in a shared container, switching to `ultrafast` or `veryfast` can reduce rendering time by **50–70%** at the cost of a slightly larger output file (acceptable for this use case).
 
-**Propuesta de comando FFmpeg mejorado:**
+**Proposed Improved FFmpeg Command:**
 ```python
 cmd = [
     'ffmpeg', '-y', '-i', tmp_input_video,
     '-vf', vf_filter,
     '-c:v', 'libx264',
-    '-preset', 'ultrafast',   # Más rápido, archivo ligeramente más grande
-    '-crf', '23',             # Calidad constante razonable (default)
-    '-threads', '0',          # Usar todos los cores disponibles
+    '-preset', 'ultrafast',   # Faster, slightly larger file size
+    '-crf', '23',             # Reasonable constant quality (default)
+    '-threads', '0',          # Use all available cores
     '-c:a', 'copy',
     '-progress', '-', '-nostats',
     tmp_output_video
 ]
 ```
 
-> **Nota:** `-c:v copy` NO es una opción válida aquí porque se aplica un filtro de video (`-vf`). Copiar el stream de video sin re-encodear solo funciona cuando no hay filtros de video.
+> **Note:** `-c:v copy` is NOT a valid option here because a video filter (`-vf`) is applied. Copying the video stream without re-encoding only works when there are no video filters.
 
 ---
 
-### Análisis de cuello de botella del pipeline completo
+### Bottleneck Analysis of the Full Pipeline
 
-El pipeline tiene 3 fases costosas:
+The pipeline has 3 costly phases:
 
-| Fase | Herramienta | Cuello de botella | Mejora posible |
+| Phase | Tool | Bottleneck | Possible Improvement |
 |---|---|---|---|
-| Descarga del video | Azure Blob | Red / latencia | No modificable sin cambiar infra |
-| Transcripción | OpenAI Whisper `whisper-1` | API remota, tiempo de respuesta | Evaluar `gpt-4o-transcribe` o `whisper-large-v3-turbo` si disponible en API |
-| Rendering | FFmpeg | CPU / preset | Cambiar a `ultrafast` (gratis, en scope) |
+| Video download | Azure Blob | Network / latency | Not modifiable without changing infra |
+| Transcription | OpenAI Whisper `whisper-1` | Remote API, response time | Evaluate `gpt-4o-transcribe` or `whisper-large-v3-turbo` if available in API |
+| Rendering | FFmpeg | CPU / preset | Switch to ultrafast (free, in scope) |
 
-**Conclusión sobre Whisper:** `whisper-1` es el único modelo de transcripción disponible en la API de OpenAI para audio. No existe un modelo alternativo oficial de OpenAI que sea más rápido Y más barato. El cuello de botella de transcripción está en la latencia de la API externa y no es optimizable sin cambiar de proveedor. Se mantiene `whisper-1`.
+**Conclusion on Whisper:** `whisper-1` is the only transcription model available in the OpenAI API for audio. There is no official alternative OpenAI model that is faster AND cheaper. The transcription bottleneck lies in the latency of the external API and cannot be optimized without changing providers. We will keep `whisper-1`.
 
-**Conclusión sobre FFmpeg:** El cambio de preset es **gratuito, inmediato, y significativo**. Es la mejora de mayor impacto dentro del scope.
-
----
-
-## Impacto en Arquitectura
-
-- [x] No — Este cambio solo afecta la capa de infraestructura (`workers.py`). No modifica contratos de API, esquema de base de datos, ni capas de dominio/aplicación.
+**Conclusion on FFmpeg:** Changing the preset is **free, immediate, and significant**. It is the highest impact improvement within scope.
 
 ---
 
-## Plan de Implementación
+## Architectural Impact
 
-1. **Abrir** `app/infrastructure/workers.py`.
-2. **Localizar** el bloque `for line in process.stdout:` dentro de `render_video` (aprox. línea 178).
-3. **Aplicar** el fix de `try/except ValueError` para el parsing de `out_time_ms`.
-4. **Actualizar** el comando FFmpeg (`cmd` list) para incluir `-c:v libx264`, `-preset ultrafast`, `-threads 0`.
-5. **Verificar** que el `finally` block de `render_video` sigue intacto (limpieza de archivos temporales).
-6. **Marcar** esta spec como `Implementada`.
-7. **Actualizar** `decisions.md` con la decisión de usar `-preset ultrafast` y el motivo.
+- [x] No — This change only affects the infrastructure layer (`workers.py`). It does not modify API contracts, database schema, or domain/application layers.
 
 ---
 
-## Criterios de Aceptación
+## Implementation Plan
 
-- [ ] **CA-01:** Un video que antes fallaba con `ValueError: invalid literal for int() with base 10: 'N/A'` ahora se renderiza completamente y el job queda en estado `COMPLETED`.
-- [ ] **CA-02:** El frontend no muestra "Processing Failed" para un video válido.
-- [ ] **CA-03:** El progreso de rendering se sigue actualizando correctamente en la UI durante el proceso.
-- [ ] **CA-04:** El tiempo de rendering se reduce perceptiblemente respecto al estado anterior (estimado: >40% más rápido).
-- [ ] **CA-05:** El archivo de video final es reproducible y con subtítulos correctamente quemados.
-
----
-
-## Pruebas Sugeridas
-
-- **Manual:** Subir un video, corregir la transcripción, hacer click en "Procesar". Verificar que el job llega a `COMPLETED` y el video es descargable.
-- **Manual (regresión):** Verificar que el progreso se actualiza en tiempo real en el frontend durante el rendering.
-- **Casos borde:**
-  - Video muy corto (<5 segundos) — FFmpeg puede emitir solo valores `N/A` al inicio.
-  - Video sin audio — No aplica (el pipeline requiere audio para la transcripción).
-  - Video ya completamente procesado (re-proceso) — Debe crear un nuevo blob `final_*`.
+1. **Open** `app/infrastructure/workers.py`.
+2. **Locate** the `for line in process.stdout:` loop inside `render_video` (approx. line 178).
+3. **Apply** the `try/except ValueError` fix for parsing `out_time_ms`.
+4. **Update** the FFmpeg command (`cmd` list) to include `-c:v libx264`, `-preset ultrafast`, `-threads 0`.
+5. **Verify** that the `finally` block of `render_video` remains intact (cleaning up temporary files).
+6. **Mark** this spec as `Implemented`.
+7. **Update** `decisions.md` with the decision to use `-preset ultrafast` and the rationale.
 
 ---
 
-## Riesgos
+## Acceptance Criteria
 
-| Riesgo | Probabilidad | Mitigación |
+- [ ] **CA-01:** A video that previously crashed with `ValueError: invalid literal for int() with base 10: 'N/A'` now renders completely and the job moves to `COMPLETED` state.
+- [ ] **CA-02:** The frontend does not show "Processing Failed" for a valid video.
+- [ ] **CA-03:** The rendering progress continues to update correctly in the UI during the process.
+- [ ] **CA-04:** The rendering time is noticeably reduced compared to the previous state (estimated: >40% faster).
+- [ ] **CA-05:** The final video file is playable and has subtitles correctly burned in.
+
+---
+
+## Suggested Tests
+
+- **Manual:** Upload a video, correct the transcription, click "Process". Verify that the job reaches `COMPLETED` and the video is downloadable.
+- **Manual (regression):** Verify that progress updates in real time on the frontend during rendering.
+- **Edge Cases:**
+  - Very short video (<5 seconds) — FFmpeg might emit only `N/A` values at the beginning.
+  - Video without audio — Not applicable (the pipeline requires audio for transcription).
+  - Video already fully processed (re-process) — Must create a new `final_*` blob.
+
+---
+
+## Risks
+
+| Risk | Probability | Mitigation |
 |---|---|---|
-| `-preset ultrafast` genera archivos demasiado grandes | Baja | El `crf 23` limita la degradación de calidad. Si fuera problema, usar `veryfast`. |
-| `-threads 0` consume todos los cores durante el rendering y afecta otros servicios del mismo host | Baja-Media | En contenedores Docker con `--cpus` limitado esto es inofensivo. Si hay contención, setear `-threads 2`. |
-| El fix de `N/A` enmascara un error real de FFmpeg | Baja | El `process.returncode` sigue verificándose después del loop; si FFmpeg falla realmente, se captura ahí. |
+| `-preset ultrafast` generates excessively large files | Low | The `crf 23` limits quality degradation. If it becomes an issue, use `veryfast`. |
+| `-threads 0` consumes all cores during rendering and affects other services on the host | Low-Medium | In Docker containers with limited `--cpus` this is harmless. If there is contention, set `-threads 2`. |
+| The `N/A` fix masks a real FFmpeg error | Low | The `process.returncode` is still checked after the loop; if FFmpeg genuinely fails, it is caught there. |
 
 ---
 
-## Notas para Futuros Agentes
+## Notes for Future Agents
 
-- El flag `-progress -` en FFmpeg envía el output de progreso a stdout; los demás logs (incluyendo errores fatales) van a stderr. El código actual mezcla stdout y stderr con `stderr=subprocess.STDOUT`. Si en el futuro se necesita separar errores de progreso, cambiar a `stderr=subprocess.PIPE` y leer ambos streams.
-- `out_time_ms=N/A` ocurre en FFmpeg cuando el muxer todavía no tiene información temporal (típicamente las primeras líneas del proceso). Es comportamiento documentado y esperado.
-- Si en el futuro se quiere mejorar la transcripción, el único camino dentro de OpenAI es usar la API de Realtime Audio o Batch API (con descuento de costo pero latencia mayor). Ambas requieren cambios arquitectónicos significativos.
+- The `-progress -` flag in FFmpeg sends progress output to stdout; other logs (including fatal errors) go to stderr. The current code mixes stdout and stderr with `stderr=subprocess.STDOUT`. If in the future we need to separate errors from progress, switch to `stderr=subprocess.PIPE` and read both streams.
+- `out_time_ms=N/A` occurs in FFmpeg when the muxer does not yet have timing information (typically the first few lines of the process). This is expected and documented behavior.
+- If in the future transcription needs to be improved, the only path within OpenAI is to use the Realtime Audio API or Batch API (with a cost discount but higher latency). Both require significant architectural changes.
 
 ---
 
-## Notas de Implementación
+## Implementation Notes
 
-**Fecha de implementación:** 2026-06-11  
-**Cambios realizados:**  
-- Se añadió un bloque `try/except ValueError` en el parsing de `out_time_ms` en `workers.py` para ignorar valores no numéricos como `N/A`.
-- Se optimizó el comando de FFmpeg agregando `-preset ultrafast`, `-crf 23` y `-threads 0` para un renderizado significativamente más rápido.
+**Implementation date:** 2026-06-11  
+**Changes made:**  
+- Added a `try/except ValueError` block in `workers.py` when parsing `out_time_ms` to ignore non-numeric values like `N/A`.
+- Optimized the FFmpeg command by adding `-preset ultrafast`, `-crf 23`, and `-threads 0` for significantly faster rendering.
 
-**Archivos de contexto actualizados:**
+**Context files updated:**
 - [ ] `.ai/context/file-map.md`
 - [ ] `.ai/context/architecture-design.md`
-- [x] `.ai/context/decisions.md` (DEC-0014 añadido)
+- [x] `.ai/context/decisions.md` (DEC-0014 added)
 - [ ] `.ai/context/project-context.md`
 - [ ] `.ai/context/development-guidelines.md`

@@ -1,73 +1,73 @@
-# Spec: [Nombre de la feature o cambio]
+# Spec: [Feature or change name]
 
-## Estado
+## Status
 
-Propuesta | En progreso | Implementada | Cancelada
-
----
-
-## Contexto
-
-Explica por qué se necesita este cambio. ¿Qué problema resuelve? ¿Qué limitación del sistema actual motiva esta spec?
+Proposal | In progress | Implemented | Cancelled
 
 ---
 
-## Objetivo
+## Context
 
-Describe claramente qué se quiere lograr. Una o dos frases concretas.
+Explain why this change is needed. What problem does it solve? What limitation of the current system motivates this spec?
 
 ---
 
-## Alcance
+## Objective
 
-Qué entra en el cambio:
+Clearly describe what is to be achieved. One or two concrete sentences.
+
+---
+
+## Scope
+
+What is included in the change:
 - ...
 - ...
 
 ---
 
-## Fuera de Alcance
+## Out of Scope
 
-Qué NO debe modificarse ni tocarse durante esta implementación:
+What MUST NOT be modified or touched during this implementation:
 - ...
 - ...
 
 ---
 
-## Requisitos Funcionales
+## Functional Requirements
 
-- [ ] Requisito funcional 1
-- [ ] Requisito funcional 2
-- [ ] Requisito funcional 3
-
----
-
-## Requisitos Técnicos
-
-- [ ] Requisito técnico 1 (e.g., debe implementar la interfaz X)
-- [ ] Requisito técnico 2 (e.g., debe funcionar en Docker)
-- [ ] Requisito técnico 3 (e.g., no debe modificar la capa de dominio)
+- [ ] Functional requirement 1
+- [ ] Functional requirement 2
+- [ ] Functional requirement 3
 
 ---
 
-## Archivos o Módulos Afectados
+## Technical Requirements
 
-Lista los archivos, carpetas o módulos que probablemente serán creados o modificados:
+- [ ] Technical requirement 1 (e.g., must implement interface X)
+- [ ] Technical requirement 2 (e.g., must work in Docker)
+- [ ] Technical requirement 3 (e.g., must not modify the domain layer)
 
-| Archivo | Tipo de cambio |
+---
+
+## Affected Files or Modules
+
+List the files, folders, or modules that will likely be created or modified:
+
+| File | Change Type |
 |---|---|
-| `app/domain/entities.py` | Modificación |
-| `app/application/interfaces.py` | Modificación |
-| `app/application/use_cases/process_video.py` | Modificación |
-| `app/infrastructure/workers.py` | Modificación |
-| `app/presentation/main.py` | Modificación |
-| `frontend/src/services/api.ts` | Modificación |
+| `app/domain/entities.py` | Modification |
+| `app/application/interfaces.py` | Modification |
+| `app/application/use_cases/process_video.py` | Modification |
+| `app/infrastructure/workers.py` | Modification |
+| `app/presentation/main.py` | Modification |
+| `frontend/src/services/api.ts` | Modification |
 
 ---
 
-## Diseño Propuesto
+## Proposed Design
 
-Explica la solución propuesta a nivel técnico. Puede incluir pseudocódigo, diagramas, decisiones de implementación, o descripción de los cambios en cada capa.
+Explain the proposed solution at a technical level. It can include pseudocode, diagrams, implementation decisions, or descriptions of changes in each layer.
 
 ### Backend
 
@@ -79,75 +79,75 @@ Explica la solución propuesta a nivel técnico. Puede incluir pseudocódigo, di
 
 ---
 
-## Impacto en Arquitectura
+## Architectural Impact
 
-¿Este cambio afecta la arquitectura del proyecto?
+Does this change affect the architecture of the project?
 
-- [ ] Sí
+- [ ] Yes
 - [ ] No
 
-Si afecta la arquitectura, los siguientes archivos deben actualizarse después de implementar:
+If it affects the architecture, the following files must be updated after implementation:
 - `.ai/context/architecture-design.md`
 - `.ai/context/file-map.md`
 - `.ai/context/decisions.md`
-- `.ai/context/project-context.md` (si aplica)
+- `.ai/context/project-context.md` (if applicable)
 
 ---
 
-## Plan de Implementación
+## Implementation Plan
 
-1. Paso 1: ...
-2. Paso 2: ...
-3. Paso 3: ...
-4. Paso 4: ...
-5. Paso 5: Marcar spec como Implementada y actualizar archivos de contexto.
-
----
-
-## Criterios de Aceptación
-
-- [ ] Criterio 1: ...
-- [ ] Criterio 2: ...
-- [ ] Criterio 3: ...
+1. Step 1: ...
+2. Step 2: ...
+3. Step 3: ...
+4. Step 4: ...
+5. Step 5: Mark spec as Implemented and update context files.
 
 ---
 
-## Pruebas Sugeridas
+## Acceptance Criteria
 
-Describe cómo validar que el cambio funciona correctamente:
+- [ ] Criterion 1: ...
+- [ ] Criterion 2: ...
+- [ ] Criterion 3: ...
+
+---
+
+## Suggested Tests
+
+Describe how to validate that the change works correctly:
 
 - **Manual:** ...
-- **Automatizado (si aplica):** ...
-- **Casos borde:** ...
+- **Automated (if applicable):** ...
+- **Edge cases:** ...
 
 ---
 
-## Riesgos
+## Risks
 
-| Riesgo | Probabilidad | Mitigación |
+| Risk | Probability | Mitigation |
 |---|---|---|
-| ... | Alta / Media / Baja | ... |
+| ... | High / Medium / Low | ... |
 
 ---
 
-## Notas para Futuros Agentes
+## Notes for Future Agents
 
-Incluye cualquier información que pueda ser útil para otro LLM o desarrollador que retome esta spec o trabaje en una feature relacionada.
+Include any information that might be useful for another LLM or developer who takes on this spec or works on a related feature.
 
 - ...
 - ...
 
 ---
 
-## Notas de Implementación
+## Implementation Notes
 
-_(Llenar después de implementar)_
+_(To be filled out after implementation)_
 
-**Fecha de implementación:** YYYY-MM-DD  
-**Cambios realizados:**  
+**Implementation date:** YYYY-MM-DD  
+**Changes made:**  
 - ...
 
-**Archivos de contexto actualizados:**
+**Context files updated:**
 - [ ] `.ai/context/file-map.md`
 - [ ] `.ai/context/architecture-design.md`
 - [ ] `.ai/context/decisions.md`

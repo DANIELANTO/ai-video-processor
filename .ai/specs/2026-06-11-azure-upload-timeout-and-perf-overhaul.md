@@ -1,12 +1,12 @@
 # Spec: Azure Upload Timeout Fix + End-to-End Performance Overhaul
 
-## Estado
+## Status
 
-`Parcialmente Implementada — Phases 1 y 2 completadas (2026-06-11). Phases 3 y 4 pendientes.`
+`Partially Implemented — Phases 1 and 2 completed (2026-06-11). Phases 3 and 4 pending.`
 
 ---
 
-## Contexto
+## Context
 
 A 24-second video takes **more than 10 minutes** to complete the full pipeline. A
 `ServiceResponseError: ("Connection aborted.", TimeoutError("The write operation timed out"))`
@@ -22,7 +22,7 @@ addresses the Azure upload timeout as the new critical blocker, plus remaining b
 
 ---
 
-## Diagnóstico de Causas Raíz
+## Root Cause Diagnosis
 
 ### P0 — Azure Blob Upload Timeout (Critical Blocker)
 
@@ -82,7 +82,7 @@ primary bottleneck but wasteful and adds unnecessary noise to the Redis channel.
 
 ---
 
-## Objetivo
+## Objective
 
 1. Fix the Azure Blob upload timeout (`ServiceResponseError: write operation timed out`).
 2. Add Celery task time limits to prevent infinite hangs.
@@ -92,7 +92,7 @@ primary bottleneck but wasteful and adds unnecessary noise to the Redis channel.
 
 ---
 
-## Alcance
+## Scope
 
 - `app/infrastructure/storage.py` — Azure SDK timeout + block upload configuration.
 - `app/infrastructure/celery_app.py` — Task time limits.
@@ -100,7 +100,7 @@ primary bottleneck but wasteful and adds unnecessary noise to the Redis channel.
 - `docker-compose.yml` — Resource limits (Phase 4); new worker service (Phase 3).
 - `app/infrastructure/queue.py` — Queue routing (Phase 3).
 
-## Fuera de Alcance
+## Out of Scope
 
 - No changes to domain or application layers.
 - No changes to database schema.
@@ -110,13 +110,13 @@ primary bottleneck but wasteful and adds unnecessary noise to the Redis channel.
 
 ---
 
-## Archivos Afectados
+## Affected Files
 
-| Archivo | Fase | Tipo de cambio |
+| File | Phase | Change Type |
 |---|---|---|
-| `app/infrastructure/storage.py` | 2 | Configuración de timeouts, block upload |
-| `app/infrastructure/celery_app.py` | 2 | Añadir time limits de tarea |
-| `app/infrastructure/workers.py` | 1+2 | Instrumentación, SoftTimeLimitExceeded handler, throttle Redis |
+| `app/infrastructure/storage.py` | 2 | Timeout and block upload configuration |
+| `app/infrastructure/celery_app.py` | 2 | Add task time limits |
+| `app/infrastructure/workers.py` | 1+2 | Instrumentation, SoftTimeLimitExceeded handler, throttle Redis |
 | `docker-compose.yml` | 3–4 | Queue separation + worker_renderer, resource limits |
 | `app/infrastructure/queue.py` | 3 | Route render to rendering queue |
 | `.ai/context/decisions.md` | Post-impl | Add DEC-0015, update DEC-0007 |
@@ -125,7 +125,7 @@ primary bottleneck but wasteful and adds unnecessary noise to the Redis channel.
 
 ---
 
-## Plan de Implementación
+## Implementation Plan
 
 ### Phase 1: Instrumentation and Measurement
 
@@ -268,7 +268,7 @@ Goal: Prevent task starvation between transcription and rendering.
 2. Assign `@celery_app.task(..., queue='transcription')` and `(..., queue='rendering')`.
 3. Update `queue.py` `CeleryQueueAdapter` to send to correct queue names.
 4. Add `worker_renderer` service in `docker-compose.yml`.
-5. Update `decisions.md`: mark DEC-0007 as `Reemplazada`, add DEC-0015.
+5. Update `decisions.md`: mark DEC-0007 as `Superseded`, add DEC-0015.
 
 ---
 
@@ -282,9 +282,9 @@ Goal: Predictable resource usage under load.
 
 ---
 
-## Criterios de Aceptación
+## Acceptance Criteria
 
-| ID | Criterio |
+| ID | Criterion |
 |---|---|
 | CA-01 | A 24-second (~21.7 MB output) video completes the full pipeline in < 3 minutes (target). |
 | CA-02 | Azure upload does NOT timeout. Worker logs show `stage=upload` with successful duration. |
@@ -297,18 +297,18 @@ Goal: Predictable resource usage under load.
 
 ---
 
-## Riesgos
+## Risks
 
-| Riesgo | Probabilidad | Mitigación |
+| Risk | Probability | Mitigation |
 |---|---|---|
-| `max_single_put_size` / `max_block_size` param names differ in SDK 12.28.0 | Baja-Media | Verify against SDK source; fallback: set at `upload_blob()` call level with `max_concurrency` |
-| `SoftTimeLimitExceeded` requires signal support (POSIX only) | Baja | Linux containers: fine. Not applicable to Windows-based containers. |
-| Increasing `read_timeout=300` delays detection of truly dead connections | Baja | Offset by retry policy and the 600s hard task time limit |
-| Block upload increases Azure transaction costs (more API calls) | Muy baja | Cost delta is negligible for MVP scale |
+| `max_single_put_size` / `max_block_size` param names differ in SDK 12.28.0 | Low-Medium | Verify against SDK source; fallback: set at `upload_blob()` call level with `max_concurrency` |
+| `SoftTimeLimitExceeded` requires signal support (POSIX only) | Low | Linux containers: fine. Not applicable to Windows-based containers. |
+| Increasing `read_timeout=300` delays detection of truly dead connections | Low | Offset by retry policy and the 600s hard task time limit |
+| Block upload increases Azure transaction costs (more API calls) | Very low | Cost delta is negligible for MVP scale |
 
 ---
 
-## Notas para Futuros Agentes
+## Notes for Future Agents
 
 - The `AzureBlobStorageAdapter` is a singleton in `workers.py` (module-level). After
   implementing Phase 2, if the underlying SDK connection pool behaves incorrectly after
@@ -322,11 +322,11 @@ Goal: Predictable resource usage under load.
 
 ---
 
-## Notas de Implementación
+## Implementation Notes
 
-**Fecha de implementación Phase 1+2:** 2026-06-11
+**Implementation date Phase 1+2:** 2026-06-11
 
-**Cambios realizados:**
+**Changes made:**
 - `app/infrastructure/storage.py`: Configured `BlobServiceClient` with `connection_timeout=30`,
   `read_timeout=300`, `max_single_put_size=8MB`, `max_block_size=4MB`. Added `read_timeout=300`
   and `max_concurrency=4` to `upload_blob()` call. Block upload now used for files > 8 MB.
@@ -338,7 +338,7 @@ Goal: Predictable resource usage under load.
   percentage point, max 100 events per job). Standardized temp-path variable hoisting
   before `try` block in `transcribe_audio` to match `render_video` pattern.
 
-**Archivos de contexto actualizados:**
+**Context files updated:**
 - [x] `.ai/context/decisions.md` (DEC-0015 added)
 - [ ] `.ai/context/architecture-design.md` (pending Phase 3)
 - [ ] `.ai/context/file-map.md` (pending Phase 3)

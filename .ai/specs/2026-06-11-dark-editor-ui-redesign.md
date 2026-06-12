@@ -1,179 +1,179 @@
-# Spec: Rediseño UI/UX — Dark Editor Theme + Sincronización Video/Subtítulos
+# Spec: UI/UX Redesign — Dark Editor Theme + Video/Subtitle Synchronization
 
-## Estado
+## Status
 
-Implementada
-
----
-
-## Contexto
-
-La interfaz actual de **AI Video Editor** es una página blanca/clara básica con estados renderizados secuencialmente en una columna centrada. El componente principal de edición (`SubtitleEditor`) es una tabla HTML plana sin interactividad visual avanzada. Concretamente:
-
-- **Fondo blanco** (`bg-gray-100`) con cards blancas: aspecto genérico de formulario web.
-- **Sin preview de video**: durante la revisión de subtítulos, el usuario no puede ver el video que está editando.
-- **Sin sincronización**: no hay forma de saber a qué momento del video corresponde cada fila de la tabla.
-- **Sin resaltado activo**: no se indica cuál subtítulo está activo en el tiempo actual del video.
-- **Scroll de página completa**: cuando hay muchos subtítulos, toda la página hace scroll, no solo la tabla.
-- **Botones grandes y desproporcionales** al contenido.
-- **Estados inconsistentes visualmente**: upload, progreso, revisión y completado tienen estilos distintos y descoordinados.
-
-Todo esto produce una experiencia que se siente como un prototipo funcional y no como un producto terminado.
+Implemented
 
 ---
 
-## Objetivo
+## Context
 
-Migrar la interfaz completa de la aplicación a un **tema oscuro profesional tipo editor de subtítulos/video**, donde:
-1. Todos los estados (upload, progress, review, rendering, completed, error) tengan un aspecto visual coherente y oscuro.
-2. La pantalla de revisión de subtítulos sea un **editor dual-panel**: preview del video a la izquierda, listado editable a la derecha.
-3. El video y los subtítulos estén **sincronizados en tiempo real**: click en fila → seek en video; reproducción del video → resaltado automático de fila activa.
-4. El subtítulo activo se **superponga sobre el video** como overlay mientras se reproduce.
+The current **AI Video Editor** interface is a basic light/white page with states rendered sequentially in a centered column. The main editing component (`SubtitleEditor`) is a flat HTML table without advanced visual interactivity. Specifically:
 
-**No se modifica ninguna lógica de backend ni los endpoints de la API.**
+- **White background** (`bg-gray-100`) with white cards: generic web form appearance.
+- **No video preview**: during subtitle review, the user cannot see the video they are editing.
+- **No synchronization**: there is no way to know which point in the video each row of the table corresponds to.
+- **No active highlight**: there is no indication of which subtitle is active at the current video time.
+- **Full-page scroll**: when there are many subtitles, the entire page scrolls, not just the table.
+- **Large buttons** disproportionate to the content.
+- **Visually inconsistent states**: upload, progress, review, and completed have different, uncoordinated styles.
 
----
-
-## Alcance
-
-- Rediseño visual completo de `App.tsx` (todos los estados UI).
-- Rediseño completo de `SubtitleEditor.tsx`.
-- Creación del nuevo hook `useVideoSync.ts`.
-- Actualización de `index.css` / `App.css` con design tokens del tema oscuro.
-- Actualización de los archivos de contexto del harness post-implementación.
+All of this produces an experience that feels like a functional prototype rather than a finished product.
 
 ---
 
-## Fuera de Alcance
+## Objective
 
-- **Ningún cambio en backend**: ni endpoints, ni workers, ni ORM, ni dominio.
-- **Sin cambios en `api.ts`**, `useJobStream.ts`, `useSubtitleEditor.ts` (salvo extensión no destructiva).
-- **Sin cambios en el flujo de datos**: el estado de la aplicación (`jobId`, `stream.status`, `subtitlesToEdit`) permanece igual en `App.tsx`. Solo cambia el JSX/estilos.
-- Sin añadir autenticación, multi-job support ni listado de trabajos.
-- Sin añadir tests automatizados en esta iteración (el proyecto no tiene estructura de testing).
-- Sin cambios en el esquema de base de datos (`SubtitleSegment` ya tiene `start_time_ms`, `end_time_ms`, `index`, `text`).
+Migrate the entire application interface to a **professional dark theme typical of subtitle/video editors**, where:
+1. All states (upload, progress, review, rendering, completed, error) have a coherent and professional dark visual appearance.
+2. The subtitle review screen is a **dual-panel editor**: video preview on the left, editable list on the right.
+3. The video and subtitles are **synchronized in real time**: clicking a row performs a seek in the video; playing the video automatically highlights the active row.
+4. The active subtitle is **overlaid on the video** as an overlay during playback.
 
----
-
-## Requisitos Funcionales
-
-### RF-01: Tema oscuro en todos los estados
-- [ ] Todos los estados de la UI usan la paleta de colores oscura definida en la sección de diseño.
-- [ ] No debe quedar ningún `bg-white`, `bg-gray-100` ni `text-gray-900` en el diseño principal.
-
-### RF-02: Estado Upload
-- [ ] Pantalla de upload oscura con zona de drag-and-drop (o botón de browse) con borde discontinuo tenue.
-- [ ] Nombre del archivo seleccionado visible en el UI antes de subir.
-- [ ] Botón "Upload and Transcribe" visible solo cuando hay archivo seleccionado.
-
-### RF-03: Estado Progress (TRANSCRIBING / RENDERING / PENDING / CONNECTED)
-- [ ] Panel oscuro con barra de progreso estilizada.
-- [ ] Texto descriptivo del estado actual (Analyzing audio / Generating video).
-- [ ] Porcentaje visible con fuente monospace.
-
-### RF-04: Estado Review — Layout Dual-Panel
-- [ ] Panel izquierdo: preview del video con overlay del subtítulo activo.
-- [ ] Panel derecho: listado/tabla editable de subtítulos con scroll interno independiente.
-- [ ] Los dos paneles son visibles simultáneamente en resoluciones ≥ 1280px (desktop).
-- [ ] En pantallas < 1024px, el video va arriba y la tabla debajo (layout vertical).
-- [ ] El área total de la pantalla de revisión no produce scroll de página, solo scroll interno en la tabla.
-
-### RF-05: Preview de Video con Subtítulo Overlay
-- [ ] El `<video>` element carga el archivo seleccionado localmente (object URL) usando el `File` original.
-- [ ] Sobre el video se muestra el texto del subtítulo activo en el tiempo actual (overlay posicionado en la parte inferior del video).
-- [ ] Controles nativos del navegador (`controls`) habilitados.
-- [ ] El video no hace autoplay al cargar la pantalla de revisión.
-
-### RF-06: Sincronización Video → Subtítulo (auto-highlight)
-- [ ] Mientras el video se reproduce, la fila del subtítulo correspondiente al `currentTime` del video se resalta automáticamente.
-- [ ] La lista hace auto-scroll para mantener la fila activa visible.
-
-### RF-07: Sincronización Subtítulo → Video (seek on click)
-- [ ] Al hacer click en una fila de subtítulo, el video hace seek al `start_time_ms` de ese subtítulo (convertido a segundos).
-- [ ] La fila seleccionada se resalta visualmente (color de acento activo).
-
-### RF-08: Edición en tiempo real
-- [ ] Al editar el texto de una fila en la tabla, el overlay del video se actualiza inmediatamente sin recargar ni renderizar nada.
-
-### RF-09: Estado Completed
-- [ ] Pantalla de éxito oscura con icono visual, mensaje de éxito y botón de descarga.
-- [ ] Opción "Start New Video" claramente visible.
-
-### RF-10: Estado Error (FAILED)
-- [ ] Panel oscuro con mensaje de error visible y opción de iniciar nuevo video.
-
-### RF-11: Botón "Discard and Start New Video"
-- [ ] Visible en todos los estados donde hay un job activo.
-- [ ] Proporcional al nuevo diseño (no gigante).
+**No backend logic or API endpoints are modified.**
 
 ---
 
-## Requisitos Técnicos
+## Scope
 
-### RT-01: Stack sin cambios
-- [ ] React 19, TypeScript, Vite, TailwindCSS v4. No se añaden nuevas librerías de UI externa.
+- Complete visual redesign of `App.tsx` (all UI states).
+- Complete redesign of `SubtitleEditor.tsx`.
+- Creation of the new `useVideoSync.ts` hook.
+- Update of `index.css` / `App.css` with dark theme design tokens.
+- Update of harness context files post-implementation.
 
-### RT-02: Nuevo hook `useVideoSync`
-- [ ] Acepta: ref del elemento `<video>`, lista de `SubtitleSegment[]`.
-- [ ] Retorna: `activeIndex` (índice del subtítulo activo o `null`), `activeText` (texto activo o `''`), `seekTo(startTimeMs: number)`.
-- [ ] Usa `timeupdate` event del video para actualizar `activeIndex` en tiempo real.
-- [ ] No depende de ninguna librería externa.
+---
 
-### RT-03: Object URL del archivo local
-- [ ] En `App.tsx`, se crea un `objectURL` del `File` original con `URL.createObjectURL(file)`.
-- [ ] El URL se revoca en cleanup para evitar memory leaks.
-- [ ] Este URL se pasa a `SubtitleEditor` como prop `videoSrc`.
+## Out of Scope
 
-### RT-04: Auto-scroll a fila activa
-- [ ] Usar `useEffect` + `ref` sobre la fila activa y llamar `scrollIntoView({ behavior: 'smooth', block: 'nearest' })`.
+- **No backend changes**: no endpoints, workers, ORM, or domain changes.
+- **No changes to `api.ts`**, `useJobStream.ts`, or `useSubtitleEditor.ts` (except for non-destructive extensions).
+- **No changes to data flow**: the application state (`jobId`, `stream.status`, `subtitlesToEdit`) remains the same in `App.tsx`. Only the JSX/styles change.
+- No addition of authentication, multi-job support, or job lists.
+- No addition of automated tests in this iteration (the project does not have a testing structure).
+- No changes to the database schema (`SubtitleSegment` already has `start_time_ms`, `end_time_ms`, `index`, `text`).
+
+---
+
+## Functional Requirements
+
+### RF-01: Dark theme across all states
+- [ ] All UI states use the dark color palette defined in the design section.
+- [ ] No `bg-white`, `bg-gray-100`, or `text-gray-900` should remain in the main design.
+
+### RF-02: Upload State
+- [ ] Dark upload screen with a styled drag-and-drop area (or browse button) with a subtle dashed border.
+- [ ] Selected file name visible in the UI before uploading.
+- [ ] "Upload and Transcribe" button visible only when a file is selected.
+
+### RF-03: Progress State (TRANSCRIBING / RENDERING / PENDING / CONNECTED)
+- [ ] Dark panel with a styled progress bar.
+- [ ] Descriptive text of the current state (e.g., "Analyzing audio" / "Generating video").
+- [ ] Percentage visible with a monospace font.
+
+### RF-04: Review State — Dual-Panel Layout
+- [ ] Left panel: video preview with active subtitle overlay.
+- [ ] Right panel: editable list/table of subtitles with independent internal scroll.
+- [ ] Both panels are visible simultaneously on resolutions ≥ 1280px (desktop).
+- [ ] On screens < 1024px, the video goes on top and the table below (vertical layout).
+- [ ] The total area of the review screen does not produce page scroll; only internal scroll in the table.
+
+### RF-05: Video Preview with Subtitle Overlay
+- [ ] The `<video>` element loads the locally selected file (object URL) using the original `File`.
+- [ ] The text of the active subtitle at the current time is shown as an overlay on the video (positioned at the bottom of the video).
+- [ ] Native browser controls (`controls`) enabled.
+- [ ] Video does not autoplay when loading the review screen.
+
+### RF-06: Video → Subtitle Synchronization (auto-highlight)
+- [ ] While the video is playing, the subtitle row corresponding to the video's `currentTime` is automatically highlighted.
+- [ ] The list auto-scrolls to keep the active row visible.
+
+### RF-07: Subtitle → Video Synchronization (seek on click)
+- [ ] Clicking a subtitle row seeks the video to the `start_time_ms` of that subtitle (converted to seconds).
+- [ ] The selected row is visually highlighted (active accent color).
+
+### RF-08: Real-time Editing
+- [ ] Editing the text of a row in the table updates the video overlay immediately without reloading or rendering anything.
+
+### RF-09: Completed State
+- [ ] Dark success screen with a visual icon, success message, and download button.
+- [ ] "Start New Video" option clearly visible.
+
+### RF-10: Error State (FAILED)
+- [ ] Dark panel showing the error message and an option to start a new video.
+
+### RF-11: "Discard and Start New Video" Button
+- [ ] Visible in all states where there is an active job.
+- [ ] Proportional to the new design (not giant).
+
+---
+
+## Technical Requirements
+
+### RT-01: Stack without changes
+- [ ] React 19, TypeScript, Vite, TailwindCSS v4. No external UI library is added.
+
+### RT-02: New `useVideoSync` hook
+- [ ] Accepts: `<video>` element ref, list of `SubtitleSegment[]`.
+- [ ] Returns: `activeIndex` (index of active subtitle or `null`), `activeText` (active text or `''`), `seekTo(startTimeMs: number)`.
+- [ ] Uses the video's `timeupdate` event to update `activeIndex` in real time.
+- [ ] Does not depend on any external library.
+
+### RT-03: Local File Object URL
+- [ ] In `App.tsx`, an `objectURL` of the original `File` is created with `URL.createObjectURL(file)`.
+- [ ] The URL is revoked in cleanup to avoid memory leaks.
+- [ ] This URL is passed to `SubtitleEditor` as the `videoSrc` prop.
+
+### RT-04: Auto-scroll to active row
+- [ ] Use `useEffect` + `ref` on the active row and call `scrollIntoView({ behavior: 'smooth', block: 'nearest' })`.
 
 ### RT-05: TailwindCSS v4 — Design Tokens
-- [ ] Definir variables CSS custom en `index.css` (bajo `:root` o `@theme`).
-- [ ] Los colores del tema se usan consistentemente en todos los componentes.
+- [ ] Define custom CSS variables in `index.css` (under `:root` or `@theme`).
+- [ ] Theme colors are used consistently across all components.
 
-### RT-06: No romper contratos existentes
-- [ ] `SubtitleEditor` sigue aceptando `initialSubtitles` y `onSubmitRender` con las mismas firmas.
-- [ ] `useSubtitleEditor` no se modifica.
+### RT-06: Do not break existing contracts
+- [ ] `SubtitleEditor` continues to accept `initialSubtitles` and `onSubmitRender` with the same signatures.
+- [ ] `useSubtitleEditor` is not modified.
 
 ---
 
-## Archivos o Módulos Afectados
+## Affected Files or Modules
 
-| Archivo | Tipo de cambio |
+| File | Change Type |
 |---|---|
-| `frontend/src/App.tsx` | Modificación mayor — JSX, layout, object URL, paso de props al editor |
-| `frontend/src/components/SubtitleEditor.tsx` | Modificación mayor — layout dual-panel, video, overlay, sincronización |
-| `frontend/src/hooks/useVideoSync.ts` | **Creación nueva** — lógica de sincronización video/subtítulos |
-| `frontend/src/index.css` | Modificación — design tokens oscuros, reset global |
-| `frontend/src/App.css` | Modificación menor o consolidación en index.css |
-| `.ai/context/file-map.md` | Actualizar — nuevo hook `useVideoSync.ts` |
-| `.ai/context/development-guidelines.md` | Actualizar — patrón de video sync |
-| `.ai/context/decisions.md` | Agregar DEC-0013 — Object URL para preview local |
+| `frontend/src/App.tsx` | Major modification — JSX, layout, object URL, passing props to editor |
+| `frontend/src/components/SubtitleEditor.tsx` | Major modification — dual-panel layout, video, overlay, synchronization |
+| `frontend/src/hooks/useVideoSync.ts` | **New file** — video/subtitle synchronization logic |
+| `frontend/src/index.css` | Modification — dark design tokens, global reset |
+| `frontend/src/App.css` | Minor modification or consolidation into index.css |
+| `.ai/context/file-map.md` | Update — new hook `useVideoSync.ts` |
+| `.ai/context/development-guidelines.md` | Update — video sync pattern |
+| `.ai/context/decisions.md` | Add DEC-0013 — Object URL for local preview |
 
 ---
 
-## Diseño Propuesto
+## Proposed Design
 
-### Paleta de Colores (Design Tokens)
+### Color Palette (Design Tokens)
 
 ```css
 /* index.css */
 :root {
-  --bg-primary:     #0d1117;   /* Fondo principal — casi negro azulado */
-  --bg-surface:     #161b22;   /* Paneles/cards */
+  --bg-primary:     #0d1117;   /* Main background — near-black blue */
+  --bg-surface:     #161b22;   /* Panels/cards */
   --bg-elevated:    #21262d;   /* Hover, inputs */
-  --border-subtle:  #30363d;   /* Bordes sutiles */
-  --text-primary:   #e6edf3;   /* Texto principal */
-  --text-secondary: #8b949e;   /* Texto secundario */
-  --text-muted:     #484f58;   /* Texto tenue */
-  --accent-blue:    #1f6feb;   /* Acento acciones */
-  --accent-amber:   #e3b341;   /* Subtítulo activo */
-  --success:        #3fb950;   /* Estado completado */
-  --error:          #f85149;   /* Estado error */
+  --border-subtle:  #30363d;   /* Subtle borders */
+  --text-primary:   #e6edf3;   /* Primary text */
+  --text-secondary: #8b949e;   /* Secondary text */
+  --text-muted:     #484f58;   /* Dimmed text */
+  --accent-blue:    #1f6feb;   /* Action accent */
+  --accent-amber:   #e3b341;   /* Active subtitle */
+  --success:        #3fb950;   /* Completed state */
+  --error:          #f85149;   /* Error state */
 }
 ```
 
-### Layout de Estado Review (Dual-Panel)
+### Review State Layout (Dual-Panel)
 
 ```
 Desktop (≥1024px):
@@ -185,17 +185,17 @@ Desktop (≥1024px):
 │  │                  │  │  │ #  │ Start  │ End    │ Text    │  │
 │  │  [video player]  │  │  ├────────────────────────────────┤  │
 │  │                  │  │  │ 1  │ 00:01  │ 00:03  │ [edit] │  │
-│  │──────────────────│  │  │ 2  │ 00:04  │ 00:07  │ [edit] │← activo (amber)
+│  │──────────────────│  │  │ 2  │ 00:04  │ 00:07  │ [edit] │← active (amber)
 │  │  "subtitle text" │  │  │ 3  │ 00:08  │ 00:11  │ [edit] │  │
-│  └──────────────────┘  │  │ ...                            │  │
-│  [▶ 00:04 / 01:22]     │  └────────────────────────────────┘  │
-│                        │  [Confirm & Render Video →]          │
+│  │                  │  │  │ ...                            │  │
+│  └──────────────────┘  │  └────────────────────────────────┘  │
+│  [▶ 00:04 / 01:22]     │  [Confirm & Render Video →]          │
 └────────────────────────┴──────────────────────────────────────┘
 
-Mobile (<1024px): video arriba, tabla debajo (layout vertical).
+Mobile (<1024px): video on top, table below (vertical layout).
 ```
 
-### Hook `useVideoSync` — Firma Completa
+### Hook `useVideoSync` — Complete Signature
 
 ```typescript
 // frontend/src/hooks/useVideoSync.ts
@@ -225,7 +225,7 @@ export function useVideoSync(
       );
       setActiveIndex(prev => {
         const next = active?.index ?? null;
-        return prev === next ? prev : next; // evitar re-renders innecesarios
+        return prev === next ? prev : next; // avoid unnecessary re-renders
       });
     };
 
@@ -247,113 +247,111 @@ export function useVideoSync(
 
 ---
 
-## Plan de Implementación
+## Implementation Plan
 
-**Paso 1 — Design Tokens y App.tsx shell**
-- Definir variables CSS del tema en `index.css`.
-- Rediseñar layout global (header, contenedor, footer con "Discard").
-- Aplicar tema oscuro a estados de Upload y Progress.
-- Verificar visualmente en browser.
+**Step 1 — Design Tokens and App.tsx shell**
+- Define theme CSS variables in `index.css`.
+- Redesign global layout (header, container, footer with "Discard").
+- Apply dark theme to Upload and Progress states.
+- Verify visually in the browser.
 
-**Paso 2 — Hook `useVideoSync`**
-- Crear `frontend/src/hooks/useVideoSync.ts`.
-- Implementar lógica `timeupdate` + `seekTo` + `activeIndex`.
+**Step 2 — Hook `useVideoSync`**
+- Create `frontend/src/hooks/useVideoSync.ts`.
+- Implement `timeupdate` + `seekTo` + `activeIndex` logic.
 
-**Paso 3 — Object URL en `App.tsx`**
-- Añadir estado `videoObjectUrl`.
-- Crear/revocar object URL al seleccionar archivo / resetear.
-- Pasar `videoSrc` a `SubtitleEditor`.
+**Step 3 — Object URL in `App.tsx`**
+- Add `videoObjectUrl` state.
+- Create/revoke object URL on file selection / reset.
+- Pass `videoSrc` to `SubtitleEditor`.
 
-**Paso 4 — Rediseño `SubtitleEditor.tsx` — Layout Dual-Panel**
-- Implementar layout dos columnas.
-- Panel izquierdo: `<video>` element.
-- Panel derecho: tabla con scroll interno, estilos oscuros.
+**Step 4 — Redesign `SubtitleEditor.tsx` — Dual-Panel Layout**
+- Implement two-column layout.
+- Left panel: `<video>` element.
+- Right panel: table with internal scroll, dark styles.
 
-**Paso 5 — Integración de Sincronización**
-- Instanciar `useVideoSync` en `SubtitleEditor`.
-- Conectar `seekTo` al click en fila.
-- Resaltar fila activa por `activeIndex`.
-- Implementar auto-scroll a fila activa.
-- Implementar overlay del subtítulo sobre el video.
+**Step 5 — Synchronization Integration**
+- Instantiate `useVideoSync` in `SubtitleEditor`.
+- Connect `seekTo` to row click.
+- Highlight active row based on `activeIndex`.
+- Implement auto-scroll to active row.
+- Implement subtitle overlay on the video.
 
-**Paso 6 — Estados restantes y polish**
-- Rediseñar estados Completed y Error.
-- Ajustar proporciones, espaciado y micro-detalles.
+**Step 6 — Remaining states and polish**
+- Redesign Completed and Error states.
+- Adjust proportions, spacing, and micro-details.
 
-**Paso 7 — Actualizar harness**
-- Actualizar `file-map.md`, `decisions.md`, `development-guidelines.md`.
-- Marcar spec como `Implementada`.
-
----
-
-## Criterios de Aceptación
-
-- [ ] **CA-01:** La app no tiene fondos blancos como tema principal. Todos los estados son oscuros.
-- [ ] **CA-02:** El estado de upload muestra zona de selección estilizada oscura.
-- [ ] **CA-03:** El estado de progreso muestra barra de progreso oscura con % correcto.
-- [ ] **CA-04:** El estado de revisión muestra video a la izquierda y tabla a la derecha en desktop.
-- [ ] **CA-05:** El video carga y reproduce el archivo seleccionado localmente.
-- [ ] **CA-06:** El subtítulo activo se superpone sobre el video como overlay.
-- [ ] **CA-07:** Click en fila → video hace seek al `start_time_ms` de ese subtítulo.
-- [ ] **CA-08:** Reproducción del video → fila activa cambia automáticamente con auto-scroll.
-- [ ] **CA-09:** Edición del texto → overlay del video se actualiza en tiempo real.
-- [ ] **CA-10:** Botón "Confirm & Render" dispara el render con las correcciones.
-- [ ] **CA-11:** Estado completed muestra botón de descarga y opción de nuevo video.
-- [ ] **CA-12:** Estado error muestra mensaje y opción de nuevo video.
-- [ ] **CA-13:** Tabla de subtítulos tiene scroll interno; la página NO scrollea con muchos subtítulos.
-- [ ] **CA-14:** En pantallas < 1024px, video y tabla se apilan verticalmente.
-- [ ] **CA-15:** Los contratos de `SubtitleEditor` (`initialSubtitles`, `onSubmitRender`) no cambian.
-- [ ] **CA-16:** El flujo completo upload → transcribe → review → render → download funciona.
+**Step 7 — Update harness**
+- Update `file-map.md`, `decisions.md`, `development-guidelines.md`.
+- Mark spec as `Implemented`.
 
 ---
 
-## Pruebas Sugeridas
+## Acceptance Criteria
 
-- **Manual — Flujo completo:** Seleccionar MP4 → upload → transcribir → editar → render → descargar.
-- **Manual — Sincronización:** Reproducir video en review → verificar que la fila activa cambia. Click en fila → verificar seek.
-- **Manual — Overlay:** Reproducir → verificar texto sobre video. Editar texto → verificar actualización del overlay.
-- **Manual — Responsive:** Reducir ventana a < 1024px → verificar layout vertical.
-- **Caso borde:** Subtítulo con texto vacío → overlay no muestra nada.
-- **Caso borde:** Video en pausa entre subtítulos → sin overlay.
-- **Caso borde:** Lista de 50+ subtítulos → scroll interno, no scroll de página.
-- **Caso borde:** Recargar página en estado `REVIEW_PENDING` → subtítulos cargan desde API pero el video no se muestra (limitación documentada).
+- [ ] **CA-01:** The app has no white backgrounds as the main theme. All states are dark.
+- [ ] **CA-02:** The upload state shows a dark, styled selection zone.
+- [ ] **CA-03:** The progress state shows a dark progress bar with the correct %.
+- [ ] **CA-04:** The review state shows the video on the left and the table on the right in desktop.
+- [ ] **CA-05:** The video loads and plays the locally selected file.
+- [ ] **CA-06:** The active subtitle is overlaid on the video as an overlay.
+- [ ] **CA-07:** Row click → video seeks to `start_time_ms` of that subtitle.
+- [ ] **CA-08:** Playing the video → active row changes automatically with auto-scroll.
+- [ ] **CA-09:** Editing text → video overlay updates in real time.
+- [ ] **CA-10:** "Confirm & Render" button triggers the render with corrections.
+- [ ] **CA-11:** Completed state shows download button and start new video option.
+- [ ] **CA-12:** Error state shows message and start new video option.
+- [ ] **CA-13:** Subtitle table has internal scroll; the page does NOT scroll with many subtitles.
+- [ ] **CA-14:** On screens < 1024px, video and table stack vertically.
+- [ ] **CA-15:** Existing `SubtitleEditor` contracts (`initialSubtitles`, `onSubmitRender`) do not change.
+- [ ] **CA-16:** Complete flow upload → transcribe → review → render → download works.
 
 ---
 
-## Riesgos
+## Suggested Tests
 
-| Riesgo | Probabilidad | Mitigación |
+- **Manual — Complete Flow:** Select MP4 → upload → transcribe → edit → render → download.
+- **Manual — Sync:** Play video in review → verify active row changes. Click row → verify seek.
+- **Manual — Overlay:** Play → verify text on video. Edit text → verify overlay updates.
+- **Manual — Responsive:** Reduce window to < 1024px → verify vertical layout.
+- **Edge Case:** Subtitle with empty text → overlay shows nothing.
+- **Edge Case:** Video paused between subtitles → no overlay.
+- **Edge Case:** List of 50+ subtitles → internal scroll, no page scroll.
+- **Edge Case:** Reload page in `REVIEW_PENDING` state → subtitles load from API but video does not show (documented limitation).
+
+---
+
+## Risks
+
+| Risk | Probability | Mitigation |
 |---|---|---|
-| `File` original no disponible si el usuario recarga la página en `REVIEW_PENDING` | Alta | Limitación documentada. La tabla funciona sin video. El render no se ve afectado (Azure tiene el video). |
-| Memory leak por no revocar el object URL | Media | Revocar en `handleReset` y en cleanup del `useEffect` en `App.tsx`. |
-| TailwindCSS v4 — compatibilidad con variables CSS custom | Baja | TailwindCSS v4 soporta `@theme`. Si hay problemas, usar `:root` CSS estándar. |
-| `timeupdate` frecuente → demasiados re-renders | Baja | Actualizar `activeIndex` solo cuando cambia el subtítulo activo (comparación previa). |
-| Overlay cubre controles del video | Baja | Posicionar overlay con `bottom: 48px` para no tapar la barra de controles nativa. |
-| Codec no soportado por browser | Baja | Solo se acepta `video/mp4` (`accept="video/mp4"` en el input). MP4/H.264 es universal. |
+| Original `File` not available if user reloads page in `REVIEW_PENDING` | High | Documented limitation. Table works without video. Render is unaffected (Azure has the video). |
+| Memory leak due to not revoking the object URL | Medium | Revoke in `handleReset` and in `App.tsx` `useEffect` cleanup. |
+| TailwindCSS v4 — compatibility with custom CSS variables | Low | TailwindCSS v4 supports `@theme`. If issues occur, use standard `:root` CSS. |
+| Frequent `timeupdate` → too many re-renders | Low | Update `activeIndex` only when the active subtitle changes (previous comparison check). |
+| Overlay covers video controls | Low | Position overlay with `bottom: 48px` to avoid covering the native control bar. |
+| Codec not supported by browser | Low | Only accept `video/mp4` (`accept="video/mp4"` on input). MP4/H.264 is universal. |
 
 ---
 
-## Notas para Futuros Agentes
+## Notes for Future Agents
 
-- El `File` original del usuario vive en `App.tsx` como `const [file, setFile]`. Para el preview se convierte a ObjectURL y se pasa a `SubtitleEditor` como prop `videoSrc`. **No se puede recuperar si la página se recarga** (limitación del browser).
-- `SubtitleSegment.start_time_ms` y `end_time_ms` están en **milisegundos**. `HTMLVideoElement.currentTime` está en **segundos**. Conversión: `video.currentTime * 1000` y `start_time_ms / 1000`.
-- TailwindCSS v4 usa `@import "tailwindcss"` en `index.css`. Verificar si el proyecto usa `@theme {}` o `:root {}` antes de implementar tokens.
-- `useVideoSync` es **complementario** a `useSubtitleEditor`, no lo reemplaza. Ambos se usan juntos en `SubtitleEditor`.
-- Para el auto-scroll, usar un `ref` de callback o un `ref` de objeto sobre el `<tr>` activo y llamar `scrollIntoView` en un `useEffect([activeIndex])`.
+- The original user `File` lives in `App.tsx` as `const [file, setFile]`. For preview, it is converted to an ObjectURL and passed to `SubtitleEditor` as the `videoSrc` prop. **It cannot be recovered if the page is reloaded** (browser limitation).
+- `SubtitleSegment.start_time_ms` and `end_time_ms` are in **milliseconds**. `HTMLVideoElement.currentTime` is in **seconds**. Conversion: `video.currentTime * 1000` and `start_time_ms / 1000`.
+- TailwindCSS v4 uses `@import "tailwindcss"` in `index.css`. Check if the project uses `@theme {}` or `:root {}` before implementing tokens.
+- `useVideoSync` is **complementary** to `useSubtitleEditor`, it does not replace it. Both are used together in `SubtitleEditor`.
+- For auto-scroll, use a callback ref or an object ref on the active `<tr>` and call `scrollIntoView` in a `useEffect([activeIndex])`.
 
 ---
 
-## Notas de Implementación
+## Implementation Notes
 
-_(Llenar después de implementar)_
+**Implementation date:** 2026-06-11  
+**Changes made:**  
+- Implemented the new dark design across the entire UI (`index.css`, `App.tsx`).
+- Refactored `SubtitleEditor.tsx` to a dual-panel layout with video preview.
+- Created `useVideoSync.ts` hook to allow jumping to different video sections on subtitle row click.
 
-**Fecha de implementación:** 2026-06-11  
-**Cambios realizados:**  
-- Implementado el nuevo diseño oscuro en toda la UI (`index.css`, `App.tsx`).
-- Refactorizado `SubtitleEditor.tsx` a un layout de doble panel con previsualización del video.
-- Creado `useVideoSync.ts` que permite saltar a las diferentes secciones del video al seleccionar un subtítulo.
-
-**Archivos de contexto actualizados:**
+**Context files updated:**
 - [x] `.ai/context/file-map.md`
 - [ ] `.ai/context/architecture-design.md`
 - [x] `.ai/context/decisions.md`

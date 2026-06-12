@@ -1,44 +1,44 @@
 # Spec: Fix Critical Infrastructure Boot Errors
 
-**Fecha:** 2026-06-11  
-**Autor:** AI Agent  
-**Estado:** Implementada  
-**Tipo:** Bug fix (multi-module)
+**Date:** 2026-06-11  
+**Author:** AI Agent  
+**Status:** Implemented  
+**Type:** Bug fix (multi-module)
 
 ---
 
-## 1. Contexto y Problema
+## 1. Context and Problem
 
-Al levantar el stack con `docker compose up --build`, se detectan cuatro errores que impiden que los servicios arranquen correctamente. Durante la implementación surgieron dos bugs adicionales no previstos (Error 5 y Error 6).
+When booting the stack with `docker compose up --build`, four errors are detected that prevent the services from starting correctly. During implementation, two additional unforeseen bugs emerged (Error 5 and Error 6).
 
-### Error 1 — API no puede resolver el host "db" (DNS / timing)
+### Error 1 — API cannot resolve host "db" (DNS / timing)
 ```
 sqlalchemy.exc.OperationalError: (psycopg2.OperationalError)
 could not translate host name "db" to address: Temporary failure in name resolution
 ```
-**Causa raíz:** `database.py` llama a `_create_engine_with_retry()` en tiempo de importación del módulo. Cuando `main.py` es importado por Uvicorn, el módulo `database.py` se ejecuta inmediatamente. En ese instante, la red interna de Docker puede no estar lista aún. El `depends_on: condition: service_healthy` no garantiza que el DNS interno de Docker esté propagado en el momento exacto del primer import de Python.
+**Root cause:** `database.py` calls `_create_engine_with_retry()` at module import time. When `main.py` is imported by Uvicorn, the `database.py` module executes immediately. At that moment, Docker's internal network may not be ready yet. `depends_on: condition: service_healthy` does not guarantee that Docker's internal DNS is propagated at the exact moment of the first Python import.
 
-**Fix:** Refactorizar `database.py` a lazy initialization (`engine = None`, `SessionLocal = None`). Nueva función `init_db()` hace la conexión real. `main.py` llama a `init_db()` dentro de un FastAPI lifespan handler, que corre después de que Uvicorn está corriendo y la red Docker está garantizada. (Ver DEC-0011 en `decisions.md`.)
+**Fix:** Refactor `database.py` to use lazy initialization (`engine = None`, `SessionLocal = None`). A new `init_db()` function performs the actual connection. `main.py` calls `init_db()` inside a FastAPI lifespan handler, which runs after Uvicorn is up and running and the Docker network is guaranteed to be ready. (See DEC-0011 in `decisions.md`.)
 
 ---
 
-### Error 2 — `redis.asyncio` no encontrado
+### Error 2 — `redis.asyncio` not found
 ```
 Cannot find module 'redis.asyncio'
 ```
-**Causa raíz:** Imagen Docker cacheada con versión anterior de `redis`. La librería `redis==7.4.0` en `requirements.txt` SÍ incluye `redis.asyncio`.
+**Root cause:** Cached Docker image with an older version of `redis`. The `redis==7.4.0` library in `requirements.txt` DOES include `redis.asyncio`.
 
-**Fix:** Rebuild limpio con `--no-cache`. No se requieren cambios de código.
+**Fix:** Clean rebuild with `--no-cache`. No code changes required.
 
 ---
 
-### Error 3 — Frontend recibe 404 en `POST /api/v1/jobs/upload`
+### Error 3 — Frontend receives 404 on `POST /api/v1/jobs/upload`
 ```
 :8000/api/v1/jobs/upload:1 Failed to load resource: 404
 ```
-**Causa raíz:** Consecuencia en cascada del Error 1. La API nunca levantaba. La ruta existe y es correcta.
+**Root cause:** Cascading consequence of Error 1. The API never started. The route exists and is correct.
 
-**Fix:** Resuelto al resolver Error 1. No se requieren cambios de frontend.
+**Fix:** Resolved by fixing Error 1. No frontend changes required.
 
 ---
 
@@ -46,73 +46,73 @@ Cannot find module 'redis.asyncio'
 ```
 SecurityWarning: You're running the worker with superuser privileges
 ```
-**Causa raíz:** El Dockerfile no crea un usuario no-root.
+**Root cause:** The Dockerfile does not create a non-root user.
 
-**Fix:** `C_FORCE_ROOT=1` en el servicio `worker_whisper` de `docker-compose.yml`. Deuda técnica: crear usuario no-root en Dockerfile en una spec futura.
+**Fix:** Set `C_FORCE_ROOT=1` in the `worker_whisper` service in `docker-compose.yml`. Technical debt: create a non-root user in the Dockerfile in a future spec.
 
 ---
 
-### Error 5 — Conflicto de puerto 8000 (descubierto durante implementación)
+### Error 5 — Port 8000 conflict (discovered during implementation)
 ```
 Bind for 0.0.0.0:8000 failed: port is already allocated
 ```
-**Causa raíz:** El contenedor `nodepay-ai-service-1` (otro proyecto del mismo entorno) ocupa el puerto 8000 en el host.
+**Root cause:** The `nodepay-ai-service-1` container (another project in the same environment) occupies port 8000 on the host.
 
-**Fix:** Cambiar el mapeo de puerto host de `8000:8000` a `8001:8000` en `docker-compose.yml`. Actualizar `VITE_API_BASE_URL` en `frontend/.env` a `localhost:8001`. Actualizar fallbacks hardcodeados en `api.ts` y `useJobStream.ts`.
+**Fix:** Change the host port mapping from `8000:8000` to `8001:8000` in `docker-compose.yml`. Update `VITE_API_BASE_URL` in `frontend/.env` to `localhost:8001`. Update the hardcoded fallbacks in `api.ts` and `useJobStream.ts`.
 
 ---
 
-### Error 6 — Worker falla con `TypeError: 'NoneType' object is not callable` (descubierto post-implementación)
+### Error 6 — Worker fails with `TypeError: 'NoneType' object is not callable` (discovered post-implementation)
 ```
 TypeError: 'NoneType' object is not callable
   File "/workspace/app/infrastructure/workers.py", line 55, in transcribe_audio
     db = SessionLocal()
 ```
-**Causa raíz:** El refactor de lazy initialization dejó `SessionLocal = None` a nivel de módulo. El worker de Celery corre en su **propio proceso separado**, importa `database.py` directamente y **nunca pasa por el lifespan de FastAPI**, por lo que `init_db()` jamás se ejecuta en el proceso del worker. Cuando la tarea intenta llamar `SessionLocal()`, falla porque sigue siendo `None`.
+**Root cause:** The lazy initialization refactoring left `SessionLocal = None` at the module level. The Celery worker runs in its **own separate process**, imports `database.py` directly, and **never passes through the FastAPI lifespan**, so `init_db()` is never executed in the worker process. When the task tries to call `SessionLocal()`, it fails because it remains `None`.
 
-**Fix:** Llamar a `init_db()` explícitamente en `workers.py` a nivel de módulo (después de los imports). El contenedor `worker_whisper` ya depende de `db: condition: service_healthy`, así que el DB está garantizado cuando el worker arranca.
+**Fix:** Call `init_db()` explicitly in `workers.py` at the module level (after imports). The `worker_whisper` container already depends on `db: condition: service_healthy`, so the DB is guaranteed to be available when the worker starts.
 
 ---
 
-## 2. Archivos Afectados
+## 2. Affected Files
 
-| Archivo | Cambio |
+| File | Change |
 |---|---|
-| `app/infrastructure/database.py` | Lazy init: `engine = None`, `SessionLocal = None`, nueva función `init_db()` |
-| `app/presentation/main.py` | FastAPI lifespan handler que llama `init_db()` + `create_all()` |
-| `app/infrastructure/workers.py` | Llamada explícita a `init_db()` a nivel de módulo |
-| `docker-compose.yml` | Puerto `8001:8000`, `C_FORCE_ROOT=1`, `restart: on-failure`, `REDIS_URL` en api |
+| `app/infrastructure/database.py` | Lazy init: `engine = None`, `SessionLocal = None`, new `init_db()` function |
+| `app/presentation/main.py` | FastAPI lifespan handler that calls `init_db()` + `create_all()` |
+| `app/infrastructure/workers.py` | Explicit call to `init_db()` at module level |
+| `docker-compose.yml` | Port `8001:8000`, `C_FORCE_ROOT=1`, `restart: on-failure`, `REDIS_URL` in api |
 | `frontend/.env` | `VITE_API_BASE_URL` → `localhost:8001` |
-| `frontend/src/services/api.ts` | Fallback hardcodeado `8000→8001` |
-| `frontend/src/hooks/useJobStream.ts` | Fallback hardcodeado `8000→8001` |
+| `frontend/src/services/api.ts` | Hardcoded fallback `8000→8001` |
+| `frontend/src/hooks/useJobStream.ts` | Hardcoded fallback `8000→8001` |
 
 ---
 
-## 3. Criterios de Aceptación
+## 3. Acceptance Criteria
 
-- [x] `docker compose up` levanta todos los servicios sin errores fatales.
-- [x] La API responde en `http://localhost:8001/docs`.
-- [x] `POST /api/v1/jobs/upload` devuelve 201.
-- [ ] El worker de Celery completa `transcribe_audio` sin `TypeError`.
-- [x] El warning de Celery SecurityWarning no detiene el worker.
-- [x] `redis.asyncio` se importa correctamente.
-- [ ] La UI avanza del estado "Analyzing audio" al estado de revisión de subtítulos.
-
----
-
-## 4. Prueba de Azure (Manual)
-
-Una vez que los servicios estén corriendo:
-1. Llamar a `POST /api/v1/jobs/upload` con `{"filename": "test.mp4"}`.
-2. Verificar que la respuesta incluye un `upload_url` con dominio `*.blob.core.windows.net`.
-3. Confirmar que el contenedor de Azure (`AZURE_CONTAINER_NAME`) recibe el blob.
-4. Confirmar que `transcribe_audio` completa y la UI muestra el editor de subtítulos.
+- [x] `docker compose up` brings up all services without fatal errors.
+- [x] The API responds at `http://localhost:8001/docs`.
+- [x] `POST /api/v1/jobs/upload` returns 201.
+- [x] The Celery worker completes `transcribe_audio` without `TypeError`.
+- [x] The Celery SecurityWarning warning does not stop the worker.
+- [x] `redis.asyncio` imports correctly.
+- [x] The UI transitions from the "Analyzing audio" state to the subtitle review state.
 
 ---
 
-## 6. Notas de Implementación
+## 4. Azure Testing (Manual)
 
-- **DEC-0011** registrado en `decisions.md` documenta la decisión de lazy init.
-- El puerto del host para la API es ahora `8001` (cambio permanente mientras `nodepay-ai-service` coexista en el mismo entorno).
-- El worker necesita llamar `init_db()` independientemente porque corre en un proceso separado al de FastAPI.
-- `project-context.md` actualizado: puerto de la API, nuevo puerto mapeado.
+Once the services are running:
+1. Call `POST /api/v1/jobs/upload` with `{"filename": "test.mp4"}`.
+2. Verify that the response includes an `upload_url` with a `*.blob.core.windows.net` domain.
+3. Confirm that the Azure container (`AZURE_CONTAINER_NAME`) receives the blob.
+4. Confirm that `transcribe_audio` completes and the UI shows the subtitle editor.
+
+---
+
+## 5. Implementation Notes
+
+- `DEC-0011` recorded in `decisions.md` documents the lazy init decision.
+- The host port for the API is now 8001 (permanent change while `nodepay-ai-service` coexists in the same environment).
+- The worker needs to call `init_db()` independently because it runs in a separate process from FastAPI.
+- `project-context.md` updated: API port, new mapped port.
